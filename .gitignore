@@ -1,0 +1,51 @@
+# Data
+Training_Data/
+Testing/
+Validation/
+data/raw/
+data/standardized/
+processed_data/
+preprocessed_data/
+
+# Outputs
+outputs/checkpoints/
+outputs/embeddings/
+outputs/faiss/
+outputs/figures/
+outputs/logs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
+
+# Jupyter
+.ipynb_checkpoints
+
+# IDEs
+.vscode/
+.idea/
+
+# System
+temp_repo/
+.gemini/
+Thumbs.db
+Desktop.ini
+.DS_Store
