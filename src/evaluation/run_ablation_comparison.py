@@ -56,14 +56,14 @@ def run_ablation_comparison(config):
     avg_sim_l = get_avg_sim(emb_l.copy())
     
     summary = f"""--- ABLATION STUDY RESULTS ---
-1. Whole-Brain Consistency (Avg Top-5 Sim): {avg_top5_w:.4f}
-2. Lesion-Centered Consistency (Avg Top-5 Sim): {avg_top5_l:.4f}
+1. Whole-Brain Consistency (Avg Top-5 Sim): {avg_sim_w:.4f}
+2. Lesion-Centered Consistency (Avg Top-5 Sim): {avg_sim_l:.4f}
 
 OBSERVATION:
 Higher consistency in 'lesion' mode suggests that the model is refocusing on tumor traits
 rather than global brain anatomy. 
 ------------------------------
-""".replace("avg_top5_w", f"{avg_sim_w}").replace("avg_top5_l", f"{avg_sim_l}")
+"""
     
     with open(config["output_txt"], "w") as f:
         f.write(summary)
