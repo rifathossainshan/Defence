@@ -154,6 +154,12 @@ if __name__ == "__main__":
         datasets.append(sample["dataset"])
         
     fast_ds = FastHybridDataset(raw_images, p_ids, datasets, SimpleSSLTransform())
+    # Exp 3: Multi-Branch Hybrid
+    try:
+        run_experiment(3, "MultiBranch", 0.01, COMMON_CONFIG, fast_ds)
+    except Exception as e:
+        print(f"\n[FATAL ERROR] Experiment 3 failed: {e}")
+        with open("outputs/convergence/exp3_error.txt", "w") as f:
+            f.write(str(e))
     
     run_experiment(1, "EarlyFusion", 0.0, COMMON_CONFIG, fast_ds)
-    run_experiment(3, "MultiBranch", 0.01, COMMON_CONFIG, fast_ds)

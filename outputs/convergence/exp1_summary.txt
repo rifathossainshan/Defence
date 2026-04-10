@@ -1,0 +1,5 @@
+EXPERIMENT 1 SUMMARY
+Model: EarlyFusion
+Lambda Recon: 0.0
+Avg Top-5 Sim: 0.702325
+Avg Var: 5.23976982e-03
