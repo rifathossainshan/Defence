@@ -2,6 +2,7 @@ import os
 import torch
 import numpy as np
 import pandas as pd
+import argparse
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from pathlib import Path
@@ -15,7 +16,7 @@ from models.encoder import MRIEncoder
 
 def extract_embeddings(config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
+    print(f"Using device: {device} | Crop Mode: {config['crop_mode']}")
 
     # 1. Load Model
     model = MRIEncoder(in_channels=4, embedding_dim=128).to(device)
@@ -27,13 +28,14 @@ def extract_embeddings(config):
     
     model.eval()
 
-    # 2. Dataset & Loader (No augmentation for extraction)
+    # 2. Dataset & Loader
     dataset = BraTSSSLDataset(
         csv_file=config["csv_path"],
         base_dir=config["base_dir"],
         split="all",
-        use_seg=False, # Disable seg for extraction to avoid collation errors
-        transform=None # Crucial: no augmentations for database indexing
+        crop_mode=config["crop_mode"], # Passed from config
+        use_seg=(config["crop_mode"] == "lesion"), # Need seg for lesion mode
+        transform=None
     )
     
     loader = DataLoader(dataset, batch_size=config["batch_size"], shuffle=False, num_workers=0)
@@ -45,7 +47,7 @@ def extract_embeddings(config):
     print(f"Extracting embeddings for {len(dataset)} samples...")
     with torch.no_grad():
         for batch in tqdm(loader):
-            # We use view1 as the representative image (since transform=None, view1=view2=original)
+            # We use view1 as the representative image
             x = batch["view1"].to(device)
             p_ids = batch["id"]
             datasets = batch["dataset"]
@@ -74,18 +76,29 @@ def extract_embeddings(config):
     meta_df["embedding_idx"] = meta_df.index
     meta_df.to_csv(config["output_csv"], index=False)
 
-    print(f"\nExtraction Complete!")
+    print(f"\n[SUCCESS] Extraction Complete ({config['crop_mode']} mode)!")
     print(f"Embeddings Matrix Shape: {embeddings_matrix.shape}")
     print(f"Saved Matrix to: {config['output_npy']}")
-    print(f"Saved Metadata to: {config['output_csv']}")
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Extract Embeddings for Retrieval")
+    parser.add_argument("--crop_mode", type=str, default="whole", choices=["whole", "lesion"])
+    parser.add_argument("--output_suffix", type=str, default="")
+    
+    args = parser.parse_args()
+    
+    suffix = f"_{args.output_suffix}" if args.output_suffix else ""
+    if args.crop_mode == "lesion" and not args.output_suffix:
+        suffix = "_lesion"
+
     CONFIG = {
         "model_path": "outputs/checkpoints/best_model.pth",
         "csv_path": "data/metadata/metadata_brats2021.csv",
         "base_dir": ".",
         "batch_size": 2,
-        "output_npy": "outputs/embeddings/embeddings.npy",
-        "output_csv": "outputs/embeddings/embedding_metadata.csv"
+        "crop_mode": args.crop_mode,
+        "output_npy": f"outputs/embeddings/embeddings{suffix}.npy",
+        "output_csv": f"outputs/embeddings/embedding_metadata{suffix}.csv"
     }
+    
     extract_embeddings(CONFIG)

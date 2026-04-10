@@ -1,11 +1,17 @@
 import os
+import sys
 from typing import Dict, Optional, Tuple
+from pathlib import Path
 
 import nibabel as nib
 import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
+
+# Add src to path for internal imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from preprocessing.crop_roi import get_bbox_from_seg, get_lesion_center_crop_coords
 
 class BraTSSSLDataset(Dataset):
     """
@@ -29,6 +35,7 @@ class BraTSSSLDataset(Dataset):
         use_seg: bool = True,
         apply_crop: bool = True,
         apply_normalize: bool = True,
+        crop_mode: str = "whole",
         transform=None,
     ) -> None:
         self.df = pd.read_csv(csv_file)
@@ -42,11 +49,12 @@ class BraTSSSLDataset(Dataset):
         if "has_all_modalities" in self.df.columns:
             self.df = self.df[self.df["has_all_modalities"] == 1].reset_index(drop=True)
 
-        self.base_dir = base_dir
+        self.base_dir = Path(base_dir)
         self.target_size = target_size
         self.use_seg = use_seg
         self.apply_crop = apply_crop
         self.apply_normalize = apply_normalize
+        self.crop_mode = crop_mode
         self.transform = transform
 
         self.modality_cols = ["t1_path", "t1ce_path", "t2_path", "flair_path"]
@@ -60,25 +68,47 @@ class BraTSSSLDataset(Dataset):
         # 1. load modalities
         modalities = []
         for col in self.modality_cols:
-            file_path = os.path.join(self.base_dir, row[col])
-            img = self._load_nifti(file_path)
+            file_path = self.base_dir / row[col]
+            img = self._load_nifti(str(file_path))
             modalities.append(img)
-
-        image = np.stack(modalities, axis=0)  # [4, H, W, D]
 
         # 2. load segmentation if available
         seg = None
-        if self.use_seg and "seg_path" in row and isinstance(row["seg_path"], str):
-            seg_path = os.path.join(self.base_dir, row["seg_path"])
-            if os.path.exists(seg_path):
-                seg = self._load_nifti(seg_path)
-                seg = np.expand_dims(seg, axis=0)  # [1, H, W, D]
+        if self.crop_mode == "lesion" or self.use_seg:
+            if "seg_path" in row and isinstance(row["seg_path"], str):
+                seg_path = self.base_dir / row["seg_path"]
+                if seg_path.exists():
+                    seg = self._load_nifti(str(seg_path))
+                elif self.crop_mode == "lesion":
+                    print(f"Warning: Seg missing for {row['patient_id']}, falling back to whole-brain.")
 
-        # 3. normalize
+        # 3. Handle Cropping (ROI/Central)
+        if self.apply_crop:
+            if self.crop_mode == "lesion" and seg is not None:
+                bbox = get_bbox_from_seg(seg[0] if seg.ndim == 4 else seg)
+                if bbox:
+                    h_s, h_e, w_s, w_e, d_s, d_e = get_lesion_center_crop_coords(bbox, self.target_size, modalities[0].shape)
+                else:
+                    h_s, h_e, w_s, w_e, d_s, d_e = self._get_center_crop_coords(modalities[0].shape)
+            else:
+                h_s, h_e, w_s, w_e, d_s, d_e = self._get_center_crop_coords(modalities[0].shape)
+
+            modalities = [img[h_s:h_e, w_s:w_e, d_s:d_e] for img in modalities]
+            if seg is not None:
+                # Handle [C, H, W, D] if already expanded
+                if seg.ndim == 4:
+                    seg = seg[:, h_s:h_e, w_s:w_e, d_s:d_e]
+                else:
+                    seg = seg[h_s:h_e, w_s:w_e, d_s:d_e]
+
+        image = np.stack(modalities, axis=0)  # [4, H, W, D]
+        if seg is not None:
+            seg = np.expand_dims(seg, axis=0)  # [1, H, W, D]
+
+        # 4. normalize
         if self.apply_normalize:
             image = self._zscore_normalize_multichannel(image)
 
-        # 4. crop foreground
         if self.apply_crop:
             image, seg = self._crop_foreground(image, seg)
 
@@ -109,9 +139,8 @@ class BraTSSSLDataset(Dataset):
             "view2": view2,
             "id": row["patient_id"],
             "dataset": row["dataset"],
+            "seg": seg if seg is not None else torch.zeros((1, *self.target_size))
         }
-        if seg is not None:
-            sample["seg"] = seg
         return sample
 
     def _load_nifti(self, path: str) -> np.ndarray:
@@ -173,3 +202,13 @@ class BraTSSSLDataset(Dataset):
         start_h, start_w, start_d = max(0, (h - th) // 2), max(0, (w - tw) // 2), max(0, (d - td) // 2)
         x = x[:, start_h:start_h + th, start_w:start_w + tw, start_d:start_d + td]
         return x
+
+    def _get_center_crop_coords(self, shape: Tuple[int, int, int]) -> Tuple[int, int, int, int, int, int]:
+        h, w, d = shape
+        th, tw, td = self.target_size
+        
+        h_start = max(0, (h - th) // 2)
+        w_start = max(0, (w - tw) // 2)
+        d_start = max(0, (d - td) // 2)
+        
+        return h_start, h_start + th, w_start, w_start + tw, d_start, d_start + td
