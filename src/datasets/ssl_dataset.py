@@ -109,8 +109,9 @@ class BraTSSSLDataset(Dataset):
             "view2": view2,
             "id": row["patient_id"],
             "dataset": row["dataset"],
-            "seg": seg,
         }
+        if seg is not None:
+            sample["seg"] = seg
         return sample
 
     def _load_nifti(self, path: str) -> np.ndarray:
