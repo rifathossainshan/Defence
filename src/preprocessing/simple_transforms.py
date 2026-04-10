@@ -25,4 +25,10 @@ class SimpleSSLTransform:
             noise = np.random.normal(0, self.noise_std, size=x.shape).astype(np.float32)
             x = x + noise
 
+        # intensity shift (scale and offset) - Phase 15.5 Fix
+        if np.random.rand() < 0.5:
+            scale = np.random.uniform(0.95, 1.05)
+            offset = np.random.uniform(-0.05, 0.05)
+            x = (x * scale) + offset
+
         return x.astype(np.float32)
