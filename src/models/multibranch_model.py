@@ -57,15 +57,15 @@ class ProjectionHead(nn.Module):
 class ReconstructionHead(nn.Module):
     """
     Decodes the fused latent vector back to the original 4-modality volume.
-    Input: [B, 512]
-    Output: [B, 4, 128, 128, 128]
+    Flexible for 64^3 or 128^3 output.
     """
-    def __init__(self, latent_dim=512, out_channels=4):
+    def __init__(self, latent_dim=512, out_channels=4, output_size=128):
         super(ReconstructionHead, self).__init__()
-        # Initial projection to spatial shape
+        self.output_size = output_size
+        # Initial projection to spatial shape (8x8x8)
         self.fc = nn.Linear(latent_dim, 64 * 8 * 8 * 8)
         
-        self.decoder = nn.Sequential(
+        layers = [
             # 8 -> 16
             nn.ConvTranspose3d(64, 32, kernel_size=4, stride=2, padding=1),
             nn.BatchNorm3d(32),
@@ -80,29 +80,37 @@ class ReconstructionHead(nn.Module):
             nn.ConvTranspose3d(16, 8, kernel_size=4, stride=2, padding=1),
             nn.BatchNorm3d(8),
             nn.ReLU(inplace=True),
-            
+        ]
+        
+        if output_size == 128:
             # 64 -> 128
-            nn.ConvTranspose3d(8, out_channels, kernel_size=4, stride=2, padding=1),
-            # Final output skip activation or use Tanh if normalized to [-1,1]
-            # Given we use Z-score, we keep it linear or Tanh.
-        )
+            layers.extend([
+                nn.ConvTranspose3d(8, 8, kernel_size=4, stride=2, padding=1),
+                nn.BatchNorm3d(8),
+                nn.ReLU(inplace=True),
+            ])
+            last_channels = 8
+        else:
+            last_channels = 8
+
+        # Final map to modality channels
+        layers.append(nn.Conv3d(last_channels, out_channels, kernel_size=1))
+        self.decoder = nn.Sequential(*layers)
 
     def forward(self, x):
         # x: [B, 512]
         x = self.fc(x)
-        x = x.view(x.size(0), 64, 8, 8, 8) # [B, 64, 8, 8, 8]
-        return self.decoder(x) # [B, 4, 128, 128, 128]
+        x = x.view(x.size(0), 64, 8, 8, 8) 
+        return self.decoder(x)
 
 class MultiBranchHybridSSLModel(nn.Module):
     """
     Final Main Model: Modality-Aware Hybrid SSL Model.
-    - 4 Independent branches for T1, T1ce, T2, FLAIR.
-    - Concat Fusion.
-    - Projection Head for retrieval embeddings.
-    - Reconstruction Head for SSL detail learning.
+    Flexible for 64^3 or 128^3 resolution.
     """
-    def __init__(self, feature_dim=128, fused_dim=512, embedding_dim=128):
+    def __init__(self, feature_dim=128, fused_dim=512, embedding_dim=128, output_size=128):
         super(MultiBranchHybridSSLModel, self).__init__()
+        self.output_size = output_size
         
         # 1. Individual Branches
         self.branch_t1 = ModalityBranchEncoder(feature_dim=feature_dim)
@@ -115,7 +123,7 @@ class MultiBranchHybridSSLModel(nn.Module):
         
         # 3. Heads
         self.projection_head = ProjectionHead(input_dim=fused_dim, output_dim=embedding_dim)
-        self.reconstruction_head = ReconstructionHead(latent_dim=fused_dim, out_channels=4)
+        self.reconstruction_head = ReconstructionHead(latent_dim=fused_dim, out_channels=4, output_size=output_size)
 
     def forward(self, x):
         # x: [B, 4, 128, 128, 128] 
