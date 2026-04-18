@@ -21,16 +21,26 @@ def run_gpu_pipeline():
     print("\n[STEP 1] Extracting Embeddings for Full Dataset (GPU)...")
     extract_script = os.path.join("src", "retrieval", "extract_embeddings_hybrid.py")
     
-    # Run extraction
     try:
         subprocess.run([python_exe, extract_script], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Error during extraction: {e}")
         return
 
-    print("\n[STEP 2] Pipeline Complete!")
-    print("Embeddings are saved in: outputs/embeddings/hybrid_embeddings.npy")
-    print("You can now build the FAISS index or run similarity search.")
+    # 2. Build FAISS Index
+    print("\n[STEP 2] Building High-Speed Search Index (FAISS)...")
+    index_script = os.path.join("src", "retrieval", "build_faiss_index_gpu.py")
+    
+    try:
+        subprocess.run([python_exe, index_script], check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error during indexing: {e}")
+        return
+
+    print("\n[STEP 3] Pipeline Complete!")
+    print("Database: outputs/embeddings/hybrid_embeddings.npy")
+    print("Index: outputs/embeddings/hybrid_faiss.index")
+    print("You can now run 'query_raw_case.py' to find similar cases in milliseconds!")
 
 if __name__ == "__main__":
     run_gpu_pipeline()

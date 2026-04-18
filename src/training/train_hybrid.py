@@ -92,12 +92,12 @@ if __name__ == "__main__":
         "csv_path": "data/metadata/metadata_brats2021.csv",
         "base_dir": ".",
         "batch_size": 2,
-        "epochs": 1,
-        "output_size": 64, # Optimized for 4GB VRAM
+        "epochs": 5, # Initial stabilization on full dataset
+        "output_size": 64,
         "lr": 1e-4,
         "temperature": 0.07,
         "lambda_recon": 0.1,
-        "subset_size": 10,
+        "subset_size": None, # Using all 1381 volumes
         "checkpoint_path": "outputs/checkpoints/multibranch_hybrid_best.pth"
     }
     
