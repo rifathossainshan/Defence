@@ -108,14 +108,3 @@ if __name__ == "__main__":
     }
     extract_hybrid_full(CONFIG)
 
-if __name__ == "__main__":
-    CONFIG = {
-        "model_path": "outputs/checkpoints/multibranch_hybrid_best.pth",
-        "csv_path": "data/metadata/metadata_brats2021.csv",
-        "base_dir": ".",
-        "sample_size": 50,
-        "output_npy": "outputs/embeddings/minieval_embeddings.npy",
-        "output_csv": "outputs/embeddings/minieval_metadata.csv",
-        "output_recon": "outputs/embeddings/minieval_recon_sample.npy"
-    }
-    extract_hybrid_mini(CONFIG)
