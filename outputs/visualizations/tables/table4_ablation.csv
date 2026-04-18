@@ -1,0 +1,5 @@
+Component,Configuration,Retrieval Sim.
+Preprocessing,Whole-Brain,0.9894
+Preprocessing,Lesion-Centered,0.989
+Architecture,Single-Modality,0.945
+Architecture (Ours),Multi-Branch Hybrid,0.9921

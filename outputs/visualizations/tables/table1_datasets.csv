@@ -1,0 +1,4 @@
+Dataset,Cases,Modalities,Role
+BraTS 2021,1389,"4 (T1, T1ce, T2, FLAIR)",Training / Validation
+TCGA-GBM,102,"4 (T1, T1ce, T2, FLAIR)",External Testing
+TCGA-LGG,65,"4 (T1, T1ce, T2, FLAIR)",External Testing

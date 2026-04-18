@@ -58,11 +58,16 @@ class GradCAM3D:
         weights = torch.mean(grads, dim=(2, 3, 4), keepdim=True) # [1, C, 1, 1, 1]
         
         # Weighted sum of activations
-        cam = torch.sum(weights * acts, dim=1).squeeze() # [D, H, W]
+        cam = torch.sum(weights * acts, dim=1, keepdim=True) # [1, 1, D', H', W']
         
         # ReLU to keep positive influence only
         cam = F.relu(cam)
         
+        # Upscale to input resolution
+        _, _, d, h, w = input_tensor.shape
+        cam = F.interpolate(cam, size=(d, h, w), mode='trilinear', align_corners=False)
+        cam = cam.squeeze() # [D, H, W]
+
         # Normalize
         cam -= cam.min()
         cam /= (cam.max() + 1e-8)

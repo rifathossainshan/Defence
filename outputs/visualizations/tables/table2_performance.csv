@@ -1,0 +1,5 @@
+Metric,Proposed Hybrid Model
+Average Similarity (Top-1),0.9917
+Average Similarity (Top-5),0.9898
+Perfect Index Match Rate,100%
+Zero-Shot Gen. Rate,>98%
