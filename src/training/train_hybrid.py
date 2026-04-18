@@ -92,7 +92,7 @@ if __name__ == "__main__":
         "csv_path": "data/metadata/metadata_brats2021.csv",
         "base_dir": ".",
         "batch_size": 2,
-        "epochs": 5, # Initial stabilization on full dataset
+        "epochs": 10, # Full training run for final validation
         "output_size": 64,
         "lr": 1e-4,
         "temperature": 0.07,
