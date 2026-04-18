@@ -37,10 +37,14 @@ class BraTSSSLDataset(Dataset):
         apply_normalize: bool = True,
         crop_mode: str = "whole",
         transform=None,
+        output_size: Optional[int] = None,
     ) -> None:
         self.df = pd.read_csv(csv_file)
         if split != "all":
             self.df = self.df[self.df["split"] == split].reset_index(drop=True)
+
+        if output_size is not None:
+            target_size = (output_size, output_size, output_size)
 
         # valid rows only
         if "is_valid" in self.df.columns:

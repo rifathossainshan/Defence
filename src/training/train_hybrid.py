@@ -14,19 +14,20 @@ from losses.hybrid_loss import HybridSSLLoss
 
 def train_hybrid(config):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    output_size = config.get("output_size", 64)
     print(f"--- STARTING HYBRID SSL TRAINING (Phase 14) ---")
-    print(f"Device: {device} | Batch Size: {config['batch_size']} | Epochs: {config['epochs']}")
+    print(f"Device: {device} | Batch Size: {config['batch_size']} | Epochs: {config['epochs']} | Resolution: {output_size}^3")
 
     # 1. Dataset & Loader
     dataset = BraTSSSLDataset(
         csv_file=config["csv_path"],
         base_dir=config["base_dir"],
         split="all",
-        crop_mode="whole", # Training whole model first
-        use_seg=False
+        crop_mode="whole", 
+        use_seg=False,
+        output_size=output_size
     )
     
-    # Optional subset for trial
     if config.get("subset_size"):
         indices = list(range(config["subset_size"]))
         dataset = torch.utils.data.Subset(dataset, indices)
@@ -35,14 +36,16 @@ def train_hybrid(config):
     loader = DataLoader(dataset, batch_size=config["batch_size"], shuffle=True, num_workers=0)
 
     # 2. Model & Loss
-    model = MultiBranchHybridSSLModel(embedding_dim=128).to(device)
+    model = MultiBranchHybridSSLModel(embedding_dim=128, output_size=output_size).to(device)
     criterion = HybridSSLLoss(temperature=config["temperature"], lambda_recon=config["lambda_recon"])
     optimizer = optim.AdamW(model.parameters(), lr=config["lr"])
 
     # 3. Training Loop
     os.makedirs(os.path.dirname(config["checkpoint_path"]), exist_ok=True)
     os.makedirs("outputs/logs", exist_ok=True)
-    log_file = open("outputs/logs/hybrid_train_log.txt", "w")
+    
+    log_path = "outputs/logs/hybrid_train_log.txt"
+    print(f"Logging to {log_path}")
 
     for epoch in range(config["epochs"]):
         model.train()
@@ -52,19 +55,14 @@ def train_hybrid(config):
         
         pbar = tqdm(loader, desc=f"Epoch {epoch+1}/{config['epochs']}")
         for batch in pbar:
-            # Dual view input for SSL
             x1 = batch["view1"].to(device)
             x2 = batch["view2"].to(device)
             
             optimizer.zero_grad()
-            
-            # Forward pass per view
             z1, recon1 = model(x1)
             z2, recon2 = model(x2)
             
-            # Hybrid Loss
             loss, l_sim, l_rec = criterion(z1, z2, recon1, recon2, x1, x2)
-            
             loss.backward()
             optimizer.step()
             
@@ -74,17 +72,19 @@ def train_hybrid(config):
             
             pbar.set_postfix({"loss": f"{loss.item():.4f}", "sim": f"{l_sim.item():.4f}", "rec": f"{l_rec.item():.4f}"})
 
-        # Logging
+        # Logging and Saving
         avg_loss = total_epoch_loss / len(loader)
         msg = f"Epoch [{epoch+1}/{config['epochs']}] | Avg Loss: {avg_loss:.4f} | Sim: {total_simclr_l/len(loader):.4f} | Rec: {total_recon_l/len(loader):.4f}\n"
         print(msg)
-        log_file.write(msg)
         
-        # Save checkpoint
+        with open(log_path, "a") as f:
+            f.write(msg)
+            f.flush()
+        
         torch.save(model.state_dict(), config["checkpoint_path"])
-        print(f"Checkpoint saved to {config['checkpoint_path']}")
+        # Flush stdout for better visibility in some environments
+        sys.stdout.flush()
 
-    log_file.close()
     print("\n[SUCCESS] Hybrid SSL Training Finalized!")
 
 if __name__ == "__main__":
@@ -92,11 +92,12 @@ if __name__ == "__main__":
         "csv_path": "data/metadata/metadata_brats2021.csv",
         "base_dir": ".",
         "batch_size": 2,
-        "epochs": 1, # Trial run first
+        "epochs": 1,
+        "output_size": 64, # Optimized for 4GB VRAM
         "lr": 1e-4,
         "temperature": 0.07,
         "lambda_recon": 0.1,
-        "subset_size": 10, # 10 sample trial
+        "subset_size": 10,
         "checkpoint_path": "outputs/checkpoints/multibranch_hybrid_best.pth"
     }
     

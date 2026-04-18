@@ -28,4 +28,4 @@ Due to standard system resource constraints and Python 3.14 requirements, the sy
 
 ---
 **Status:** Defense-Ready | Fully Operational | CPU Stable
-**Developer:** Antigravity AI Assist & USER
+
