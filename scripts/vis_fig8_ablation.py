@@ -6,7 +6,7 @@ import sys
 
 # Add current directory to path for imports
 sys.path.append('.')
-from scripts.vis_utils import set_academic_style, save_fig
+from scripts.vis_utils import set_academic_style, save_fig, add_panel_label
 
 def visualize_ablation():
     set_academic_style()
@@ -21,7 +21,7 @@ def visualize_ablation():
     
     df = pd.DataFrame(data)
     
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(10, 7))
     
     barplot = sns.barplot(
         data=df, 
@@ -31,9 +31,9 @@ def visualize_ablation():
         ax=ax
     )
     
-    ax.set_title("Figure 8. Ablation Analysis of Model Design Choices", fontsize=22, pad=20)
     ax.set_ylabel("Retrieval Consistency (mAP / Sim)", fontweight='bold')
     ax.set_xlabel("Experimental Configuration", fontweight='bold')
+    add_panel_label(ax, '(A)')
     ax.set_ylim(0.9, 1.0)
     
     # Add values

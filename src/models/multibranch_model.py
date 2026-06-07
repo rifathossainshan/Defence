@@ -67,17 +67,20 @@ class ReconstructionHead(nn.Module):
         
         layers = [
             # 8 -> 16
-            nn.ConvTranspose3d(64, 32, kernel_size=4, stride=2, padding=1),
+            nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True),
+            nn.Conv3d(64, 32, kernel_size=3, padding=1),
             nn.BatchNorm3d(32),
             nn.ReLU(inplace=True),
             
             # 16 -> 32
-            nn.ConvTranspose3d(32, 16, kernel_size=4, stride=2, padding=1),
+            nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True),
+            nn.Conv3d(32, 16, kernel_size=3, padding=1),
             nn.BatchNorm3d(16),
             nn.ReLU(inplace=True),
             
             # 32 -> 64
-            nn.ConvTranspose3d(16, 8, kernel_size=4, stride=2, padding=1),
+            nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True),
+            nn.Conv3d(16, 8, kernel_size=3, padding=1),
             nn.BatchNorm3d(8),
             nn.ReLU(inplace=True),
         ]
@@ -85,7 +88,8 @@ class ReconstructionHead(nn.Module):
         if output_size == 128:
             # 64 -> 128
             layers.extend([
-                nn.ConvTranspose3d(8, 8, kernel_size=4, stride=2, padding=1),
+                nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True),
+                nn.Conv3d(8, 8, kernel_size=3, padding=1),
                 nn.BatchNorm3d(8),
                 nn.ReLU(inplace=True),
             ])

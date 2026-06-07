@@ -1,11 +1,17 @@
-import nibabel as nib
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import os
 import pandas as pd
 import numpy as np
 import sys
 import faiss
+import nibabel as nib
 from pathlib import Path
+
+# Add src to path for imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from src.utils.path_resolver import resolve_mri_path
 
 def create_retrieval_panel(query_id, config):
     """
@@ -50,16 +56,15 @@ def create_retrieval_panel(query_id, config):
     # Function to get central slice
     def get_slice(pid):
         m_row = master_meta[master_meta["patient_id"] == pid].iloc[0]
-        # FLAIR is usually the best for tumor visualization
-        path = m_row["flair_path"]
-        if not os.path.exists(path):
+        # Resolve relative/absolute path safely
+        path = resolve_mri_path(m_row["flair_path"])
+        if path is None or not os.path.exists(path):
             return np.zeros((240, 240))
         
-        img = nib.load(path).get_fdata()
-        # Take central axial slice (BraTS shape is 240x240x155)
-        # We take z=77
+        img = nib.load(path)
+        # Take central axial slice (BraTS shape is 240x240x155) using proxy to avoid full 3D array load
         z_idx = img.shape[2] // 2
-        slice_data = img[:, :, z_idx]
+        slice_data = np.array(img.dataobj[..., z_idx], dtype=np.float32)
         
         # Simple normalization for display
         slice_data = (slice_data - np.min(slice_data)) / (np.max(slice_data) + 1e-8)

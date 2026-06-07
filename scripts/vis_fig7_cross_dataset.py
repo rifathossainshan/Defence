@@ -6,7 +6,7 @@ import sys
 
 # Add current directory to path for imports
 sys.path.append('.')
-from scripts.vis_utils import set_academic_style, save_fig
+from scripts.vis_utils import set_academic_style, save_fig, add_panel_label
 
 def get_dataset_name(pid):
     if str(pid).startswith("TCGA-"):
@@ -32,20 +32,22 @@ def visualize_cross_dataset():
     # Calculate group means and std
     stats = df.groupby('Cohort')['best_match_sim'].agg(['mean', 'std']).reset_index()
     
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(10, 7))
     
     barplot = sns.barplot(
         data=df, 
         x='Cohort', y='best_match_sim', 
+        hue='Cohort',
         palette='magma', 
         capsize=.1, 
         errorbar='sd',
-        ax=ax
+        ax=ax,
+        legend=False
     )
     
-    ax.set_title("Figure 7. Cross-Dataset Retrieval Generalization", fontsize=22, pad=20)
     ax.set_ylabel("Similarity Score (Cosine)", fontweight='bold')
     ax.set_xlabel("Query Source Cohort", fontweight='bold')
+    add_panel_label(ax, '(A)')
     ax.set_ylim(0.9, 1.01) # Zoom in on the high similarity region
     
     # Add values on top of bars

@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 import os
 import sys
 
@@ -29,13 +29,13 @@ def visualize_embedding_space():
     features = features[:n_samples]
     metadata = metadata.iloc[:n_samples]
 
-    print(f"Running PCA on {n_samples} samples...")
-    # 2. PCA Projection (very fast, deterministic, no deadlocks)
-    pca = PCA(n_components=2, random_state=42)
-    projections = pca.fit_transform(features)
+    print(f"Running t-SNE on {n_samples} samples...")
+    # 2. t-SNE Projection
+    tsne = TSNE(n_components=2, perplexity=30, random_state=42)
+    projections = tsne.fit_transform(features)
     
-    metadata['pca_1'] = projections[:, 0]
-    metadata['pca_2'] = projections[:, 1]
+    metadata['tsne_1'] = projections[:, 0]
+    metadata['tsne_2'] = projections[:, 1]
     
     # 3. Plotting
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -50,7 +50,7 @@ def visualize_embedding_space():
 
     scatter = sns.scatterplot(
         data=metadata,
-        x='pca_1', y='pca_2',
+        x='tsne_1', y='tsne_2',
         hue='Display_Dataset',
         style='Display_Dataset',
         palette='viridis',
@@ -60,8 +60,8 @@ def visualize_embedding_space():
         linewidth=0.5
     )
     
-    ax.set_xlabel("Principal Component 1", fontsize=18, fontweight='bold')
-    ax.set_ylabel("Principal Component 2", fontsize=18, fontweight='bold')
+    ax.set_xlabel("t-SNE Dimension 1", fontsize=18, fontweight='bold')
+    ax.set_ylabel("t-SNE Dimension 2", fontsize=18, fontweight='bold')
     add_panel_label(ax, '(A)')
     
     legend = ax.legend(title="Dataset Cohort", title_fontsize='16', fontsize='14', loc='best', frameon=True)

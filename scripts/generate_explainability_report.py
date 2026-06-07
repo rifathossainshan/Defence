@@ -9,17 +9,9 @@ from src.evaluation.explainability_gradcam import GradCAM3D, save_explainability
 import faiss
 from scipy.ndimage import zoom
 
-# Configuration
-DATASET_ROOT = "e:/Cse Engineering/11Defense"
-MODALITY_COLS = ['t1_path', 't1ce_path', 't2_path', 'flair_path']
-
-def resolve_path(path, dataset):
-    """Ensure path is absolute regardless of dataset source."""
-    if pd.isna(path): return None
-    path = str(path).replace('\\', '/')
-    if dataset == 'BraTS2021':
-        return os.path.join(DATASET_ROOT, path)
-    return path # TCGA / BraTS2024 are absolute or already fixed
+import sys
+sys.path.append('.')
+from src.utils.path_resolver import resolve_mri_path
 
 def load_mri_volume(modality_path, target_shape=(64, 64, 64)):
     import nibabel as nib
@@ -27,7 +19,8 @@ def load_mri_volume(modality_path, target_shape=(64, 64, 64)):
         print(f"Warning: Path not found: {modality_path}")
         return np.zeros(target_shape)
         
-    img = nib.load(modality_path).get_fdata()
+    img_obj = nib.load(modality_path)
+    img = np.array(img_obj.dataobj, dtype=np.float32)
     # Basic normalization
     img = (img - np.mean(img)) / (np.std(img) + 1e-8)
     
@@ -65,12 +58,15 @@ def run_explainability():
     tcga_df = pd.read_csv(tcga_metadata_path)
     brats_df = pd.read_csv(brats_metadata_path)
     
+    # Configuration
+    MODALITY_COLS = ['t1_path', 't1ce_path', 't2_path', 'flair_path']
+
     # Create a lookup dict: patient_id -> modality_paths
     lookup = {}
     for _, row in tcga_df.iterrows():
-        lookup[row['patient_id']] = {m: resolve_path(row[m], row['dataset']) for m in MODALITY_COLS}
+        lookup[row['patient_id']] = {m: resolve_mri_path(row[m]) for m in MODALITY_COLS}
     for _, row in brats_df.iterrows():
-        lookup[row['patient_id']] = {m: resolve_path(row[m], row['dataset']) for m in MODALITY_COLS}
+        lookup[row['patient_id']] = {m: resolve_mri_path(row[m]) for m in MODALITY_COLS}
 
     # Load FAISS index and its metadata
     index = faiss.read_index(index_path)
@@ -139,9 +135,6 @@ def run_explainability():
 
     gcam.remove_hooks()
     print("\n[FINISH] Explainability analysis complete.")
-
-if __name__ == "__main__":
-    run_explainability()
 
 if __name__ == "__main__":
     run_explainability()

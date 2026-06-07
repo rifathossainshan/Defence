@@ -14,13 +14,19 @@ from scipy.ndimage import zoom
 sys.path.append('.')
 from scripts.vis_utils import set_academic_style, save_fig, add_panel_label
 
-from src.utils.path_resolver import resolve_mri_path
+DATASET_ROOT = "e:/Cse Engineering/11Defense"
+
+def resolve_path(path, dataset):
+    if pd.isna(path): return None
+    path = str(path).replace('\\', '/')
+    if dataset == 'BraTS2021':
+        return os.path.join(DATASET_ROOT, path)
+    return path
 
 def load_mri_volume(modality_path, target_shape=(64, 64, 64)):
     if modality_path is None or not os.path.exists(modality_path):
         return np.zeros(target_shape)
-    img_obj = nib.load(modality_path)
-    img = np.array(img_obj.dataobj, dtype=np.float32)
+    img = nib.load(modality_path).get_fdata()
     img = (img - np.mean(img)) / (np.std(img) + 1e-8)
     factors = [t/s for t, s in zip(target_shape, img.shape)]
     return zoom(img, factors, order=1)
@@ -70,12 +76,12 @@ def visualize_gradcam():
     else:
         m_row = tcga_meta[tcga_meta['patient_id'] == m_id].iloc[0]
         
-    m_vols = {mod: load_mri_volume(resolve_mri_path(m_row[f"{mod}_path"])) for mod in ['t1', 't1ce', 't2', 'flair']}
+    m_vols = {mod: load_mri_volume(resolve_path(m_row[f"{mod}_path"], m_dataset)) for mod in ['t1', 't1ce', 't2', 'flair']}
     m_input_tensor = np.stack([m_vols['t1'], m_vols['t1ce'], m_vols['t2'], m_vols['flair']], axis=0)
     m_input_tensor = torch.from_numpy(m_input_tensor).unsqueeze(0).float().to(device)
 
     # 4. Generate Heatmaps
-    fig, axes = plt.subplots(2, 4, figsize=(10, 5))
+    fig, axes = plt.subplots(2, 4, figsize=(20, 10))
     
     modalities = ['flair', 't1ce']
     panel_chars = [['(A)', '(B)', '(C)', '(D)'], ['(E)', '(F)', '(G)', '(H)']] # Extended labels for rows

@@ -18,8 +18,7 @@ def preprocess_step_demo(path, target_shape=(64, 64, 64)):
     """Simulate preprocessing steps for visualization."""
     # 1. Raw
     img_obj = nib.load(path)
-    # Read as float32 immediately to reduce memory footprints
-    raw_vol = np.array(img_obj.dataobj, dtype=np.float32)
+    raw_vol = img_obj.get_fdata()
     
     # 2. Normalized
     norm_vol = (raw_vol - np.mean(raw_vol)) / (np.std(raw_vol) + 1e-8)
@@ -53,7 +52,7 @@ def visualize_workflow():
     print(f"Processing workflow for {patient_id}...")
     raw, norm, crop, resized = preprocess_step_demo(flair_path)
     
-    fig, axes = plt.subplots(1, 4, figsize=(10, 2.5))
+    fig, axes = plt.subplots(1, 4, figsize=(20, 5))
     
     panel_labels = ['(A)', '(B)', '(C)', '(D)']
     short_titles = ['Raw Slice', 'Normalized', 'ROI Cropped', 'Final Resized']

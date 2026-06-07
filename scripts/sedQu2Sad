@@ -11,16 +11,22 @@ import faiss
 sys.path.append('.')
 from scripts.vis_utils import set_academic_style, save_fig, add_panel_label
 
-from src.utils.path_resolver import resolve_mri_path
+DATASET_ROOT = "e:/Cse Engineering/11Defense"
+
+def resolve_path(path, dataset):
+    if pd.isna(path): return None
+    path = str(path).replace('\\', '/')
+    if dataset == 'BraTS2021':
+        return os.path.join(DATASET_ROOT, path)
+    return path
 
 def load_slice(path):
     if path is None or not os.path.exists(path):
         return np.zeros((64, 64))
-    img = nib.load(path)
-    # Get center axial slice using proxy slicing to avoid memory allocation of full 3D array
+    img = nib.load(path).get_fdata()
+    # Get center axial slice
     z = img.shape[2] // 2
-    slice_data = np.array(img.dataobj[..., z], dtype=np.float32)
-    return np.rot90(slice_data)
+    return np.rot90(img[:, :, z])
 
 def visualize_retrieval():
     set_academic_style()
@@ -59,7 +65,7 @@ def visualize_retrieval():
         if len(match_indices) == 3: break
 
     # 4. Plotting
-    fig, axes = plt.subplots(1, 4, figsize=(10, 3))
+    fig, axes = plt.subplots(1, 4, figsize=(20, 6))
     
     panel_labels = ['(A)', '(B)', '(C)', '(D)']
     
@@ -84,7 +90,7 @@ def visualize_retrieval():
         else:
             m_row = tcga_meta[tcga_meta['patient_id'] == m_id].iloc[0]
             
-        m_path = resolve_mri_path(m_row['flair_path'])
+        m_path = resolve_path(m_row['flair_path'], m_dataset)
         m_img = load_slice(m_path)
         
         ax = axes[i+1]

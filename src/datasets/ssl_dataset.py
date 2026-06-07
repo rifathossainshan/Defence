@@ -149,7 +149,7 @@ class BraTSSSLDataset(Dataset):
 
     def _load_nifti(self, path: str) -> np.ndarray:
         img = nib.load(path)
-        data = img.get_fdata().astype(np.float32)
+        data = np.array(img.dataobj, dtype=np.float32)
         return data
 
     def _zscore_normalize_multichannel(self, image: np.ndarray) -> np.ndarray:
