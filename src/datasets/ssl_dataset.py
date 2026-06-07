@@ -69,59 +69,72 @@ class BraTSSSLDataset(Dataset):
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         row = self.df.iloc[idx]
 
-        # 1. load modalities
-        modalities = []
-        for col in self.modality_cols:
-            file_path = self.base_dir / row[col]
-            img = self._load_nifti(str(file_path))
-            modalities.append(img)
+        # 1. Load one NIfTI header to read image shape without loading raw float values (saves RAM)
+        first_mod_path = self.base_dir / row[self.modality_cols[0]]
+        first_img = nib.load(str(first_mod_path))
+        orig_shape = first_img.shape
 
-        # 2. load segmentation if available
+        # 2. Load segmentation first if lesion-centered cropping is requested
         seg = None
+        h_s, h_e, w_s, w_e, d_s, d_e = None, None, None, None, None, None
+        
         if self.crop_mode == "lesion" or self.use_seg:
             if "seg_path" in row and isinstance(row["seg_path"], str):
                 seg_path = self.base_dir / row["seg_path"]
                 if seg_path.exists():
-                    seg = self._load_nifti(str(seg_path))
+                    # Load full seg volume (seg is binary/integer and lightweight)
+                    seg_obj = nib.load(str(seg_path))
+                    seg = np.array(seg_obj.dataobj, dtype=np.int8)
                 elif self.crop_mode == "lesion":
                     print(f"Warning: Seg missing for {row['patient_id']}, falling back to whole-brain.")
 
-        # 3. Handle Cropping (ROI/Central)
+        # 3. Resolve Cropping coordinates on the full volume space
         if self.apply_crop:
             if self.crop_mode == "lesion" and seg is not None:
                 bbox = get_bbox_from_seg(seg[0] if seg.ndim == 4 else seg)
                 if bbox:
-                    h_s, h_e, w_s, w_e, d_s, d_e = get_lesion_center_crop_coords(bbox, self.target_size, modalities[0].shape)
+                    h_s, h_e, w_s, w_e, d_s, d_e = get_lesion_center_crop_coords(bbox, self.target_size, orig_shape)
                 else:
-                    h_s, h_e, w_s, w_e, d_s, d_e = self._get_center_crop_coords(modalities[0].shape)
+                    h_s, h_e, w_s, w_e, d_s, d_e = self._get_center_crop_coords(orig_shape)
             else:
-                h_s, h_e, w_s, w_e, d_s, d_e = self._get_center_crop_coords(modalities[0].shape)
+                h_s, h_e, w_s, w_e, d_s, d_e = self._get_center_crop_coords(orig_shape)
 
-            modalities = [img[h_s:h_e, w_s:w_e, d_s:d_e] for img in modalities]
-            if seg is not None:
-                # Handle [C, H, W, D] if already expanded
-                if seg.ndim == 4:
-                    seg = seg[:, h_s:h_e, w_s:w_e, d_s:d_e]
-                else:
-                    seg = seg[h_s:h_e, w_s:w_e, d_s:d_e]
+        # 4. Now, load ONLY the sliced regions directly from disk for all 4 modalities (extremely RAM safe)
+        modalities = []
+        for col in self.modality_cols:
+            file_path = self.base_dir / row[col]
+            img_obj = nib.load(str(file_path))
+            if self.apply_crop and h_s is not None:
+                # Direct disk-level proxy slicing
+                img_data = np.array(img_obj.dataobj[h_s:h_e, w_s:w_e, d_s:d_e], dtype=np.float32)
+            else:
+                img_data = np.array(img_obj.dataobj, dtype=np.float32)
+            modalities.append(img_data)
+
+        # Apply same crop to segmentation if we resolved it
+        if seg is not None and self.apply_crop and h_s is not None:
+            if seg.ndim == 4:
+                seg = seg[:, h_s:h_e, w_s:w_e, d_s:d_e]
+            else:
+                seg = seg[h_s:h_e, w_s:w_e, d_s:d_e]
 
         image = np.stack(modalities, axis=0)  # [4, H, W, D]
         if seg is not None:
             seg = np.expand_dims(seg, axis=0)  # [1, H, W, D]
 
-        # 4. normalize
+        # 5. normalize
         if self.apply_normalize:
             image = self._zscore_normalize_multichannel(image)
 
         if self.apply_crop:
             image, seg = self._crop_foreground(image, seg)
 
-        # 5. resize/pad to target size
+        # 6. resize/pad to target size
         image = self._pad_or_crop_to_size(image, self.target_size)
         if seg is not None:
             seg = self._pad_or_crop_to_size(seg, self.target_size)
 
-        # 6. make two SSL views
+        # 7. make two SSL views
         view1 = image.copy()
         view2 = image.copy()
 
@@ -129,9 +142,7 @@ class BraTSSSLDataset(Dataset):
             view1 = self.transform(view1)
             view2 = self.transform(view2)
 
-        # 7. convert to tensor and transpose to [C, D, H, W] if needed
-        # Current shape is [C, H, W, D]
-        # PyTorch 3D Conv expects [C, D, H, W]
+        # 8. convert to tensor and transpose to [C, D, H, W]
         view1 = torch.tensor(view1, dtype=torch.float32).permute(0, 3, 1, 2)
         view2 = torch.tensor(view2, dtype=torch.float32).permute(0, 3, 1, 2)
 
@@ -148,6 +159,7 @@ class BraTSSSLDataset(Dataset):
         return sample
 
     def _load_nifti(self, path: str) -> np.ndarray:
+        # Kept as fallback, reads entire file safely
         img = nib.load(path)
         data = np.array(img.dataobj, dtype=np.float32)
         return data

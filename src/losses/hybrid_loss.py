@@ -7,7 +7,7 @@ class HybridSSLLoss(nn.Module):
     Combined loss for Hybrid SSL:
     SimCLR Loss (Contrastive) + MSE Loss (Reconstruction)
     """
-    def __init__(self, temperature=0.07, lambda_recon=0.1):
+    def __init__(self, temperature=0.15, lambda_recon=1.0):
         super(HybridSSLLoss, self).__init__()
         self.temperature = temperature
         self.lambda_recon = lambda_recon

@@ -6,7 +6,7 @@ class SimCLRLoss(nn.Module):
     """
     NT-Xent (Normalized Temperature-scaled Cross Entropy) Loss.
     """
-    def __init__(self, temperature=0.07):
+    def __init__(self, temperature=0.15):
         super(SimCLRLoss, self).__init__()
         self.temperature = temperature
         self.criterion = nn.CrossEntropyLoss()

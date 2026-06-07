@@ -65,25 +65,42 @@ class ReconstructionHead(nn.Module):
         # Initial projection to spatial shape (8x8x8)
         self.fc = nn.Linear(latent_dim, 64 * 8 * 8 * 8)
         
-        layers = [
-            # 8 -> 16
+        layers = []
+        
+        # 8 -> 16
+        layers.extend([
             nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True),
             nn.Conv3d(64, 32, kernel_size=3, padding=1),
             nn.BatchNorm3d(32),
             nn.ReLU(inplace=True),
-            
+        ])
+        
+        if output_size >= 64:
             # 16 -> 32
-            nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True),
-            nn.Conv3d(32, 16, kernel_size=3, padding=1),
-            nn.BatchNorm3d(16),
-            nn.ReLU(inplace=True),
+            layers.extend([
+                nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True),
+                nn.Conv3d(32, 16, kernel_size=3, padding=1),
+                nn.BatchNorm3d(16),
+                nn.ReLU(inplace=True),
+            ])
             
             # 32 -> 64
-            nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True),
-            nn.Conv3d(16, 8, kernel_size=3, padding=1),
-            nn.BatchNorm3d(8),
-            nn.ReLU(inplace=True),
-        ]
+            layers.extend([
+                nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True),
+                nn.Conv3d(16, 8, kernel_size=3, padding=1),
+                nn.BatchNorm3d(8),
+                nn.ReLU(inplace=True),
+            ])
+            last_channels = 8
+        else:
+            # If output_size is 32, we do one more custom scale from 16 -> 32
+            layers.extend([
+                nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True),
+                nn.Conv3d(32, 8, kernel_size=3, padding=1),
+                nn.BatchNorm3d(8),
+                nn.ReLU(inplace=True),
+            ])
+            last_channels = 8
         
         if output_size == 128:
             # 64 -> 128
@@ -93,8 +110,6 @@ class ReconstructionHead(nn.Module):
                 nn.BatchNorm3d(8),
                 nn.ReLU(inplace=True),
             ])
-            last_channels = 8
-        else:
             last_channels = 8
 
         # Final map to modality channels

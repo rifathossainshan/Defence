@@ -13,7 +13,7 @@ from models.multibranch_model import MultiBranchHybridSSLModel
 from losses.hybrid_loss import HybridSSLLoss
 
 def train_hybrid(config):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(config.get("device", "cuda" if torch.cuda.is_available() else "cpu"))
     output_size = config.get("output_size", 64)
     print(f"--- STARTING HYBRID SSL TRAINING (Phase 14) ---")
     print(f"Device: {device} | Batch Size: {config['batch_size']} | Epochs: {config['epochs']} | Resolution: {output_size}^3")
@@ -39,6 +39,9 @@ def train_hybrid(config):
     model = MultiBranchHybridSSLModel(embedding_dim=128, output_size=output_size).to(device)
     criterion = HybridSSLLoss(temperature=config["temperature"], lambda_recon=config["lambda_recon"])
     optimizer = optim.AdamW(model.parameters(), lr=config["lr"])
+    
+    # Initialize GradScaler for Mixed Precision (AMP) if running on CUDA
+    scaler = torch.cuda.amp.GradScaler(enabled=(device.type == "cuda"))
 
     # 3. Training Loop
     os.makedirs(os.path.dirname(config["checkpoint_path"]), exist_ok=True)
@@ -59,12 +62,21 @@ def train_hybrid(config):
             x2 = batch["view2"].to(device)
             
             optimizer.zero_grad()
-            z1, recon1 = model(x1)
-            z2, recon2 = model(x2)
             
-            loss, l_sim, l_rec = criterion(z1, z2, recon1, recon2, x1, x2)
-            loss.backward()
-            optimizer.step()
+            # Forward pass under autocast (mixed precision)
+            with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+                z1, recon1 = model(x1)
+                z2, recon2 = model(x2)
+                loss, l_sim, l_rec = criterion(z1, z2, recon1, recon2, x1, x2)
+            
+            # Backward pass using scaled gradients
+            if device.type == "cuda":
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                loss.backward()
+                optimizer.step()
             
             total_epoch_loss += loss.item()
             total_simclr_l += l_sim.item()
@@ -95,8 +107,8 @@ if __name__ == "__main__":
         "epochs": 10, # Full training run for final validation
         "output_size": 64,
         "lr": 1e-4,
-        "temperature": 0.07,
-        "lambda_recon": 0.1,
+        "temperature": 0.15,
+        "lambda_recon": 1.0,
         "subset_size": None, # Using all 1381 volumes
         "checkpoint_path": "outputs/checkpoints/multibranch_hybrid_best.pth"
     }

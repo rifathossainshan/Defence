@@ -20,7 +20,8 @@ def preprocess_nifti(paths, target_shape=(128, 128, 128)):
     """
     imgs = []
     for p in paths:
-        img = nib.load(p).get_fdata().astype(np.float32)
+        img_obj = nib.load(p)
+        img = np.array(img_obj.dataobj, dtype=np.float32)
         # Foreground Z-score
         mask = img > 0
         if mask.any():
@@ -33,7 +34,6 @@ def preprocess_nifti(paths, target_shape=(128, 128, 128)):
     volume = np.stack(imgs, axis=0)
     
     # Center Crop / Pad to 128x128x128
-    # BraTS input usually 240x240x155
     c, h, w, d = volume.shape
     th, tw, td = target_shape
     
@@ -58,7 +58,8 @@ def preprocess_nifti(paths, target_shape=(128, 128, 128)):
     return torch.from_numpy(padded).unsqueeze(0) # [1, 4, 128, 128, 128]
 
 def query_live(case_dir, config):
-    print(f"Starting Live Query for directory: {case_dir}")
+    query_id = os.path.basename(os.path.normpath(case_dir))
+    print(f"Starting Live Query for patient ID: {query_id} (Directory: {case_dir})")
     
     # 1. Map modalities
     files = os.listdir(case_dir)
@@ -89,24 +90,36 @@ def query_live(case_dir, config):
         query_emb = model.get_features(input_tensor.to(device))
         query_emb = torch.nn.functional.normalize(query_emb, p=2, dim=1).cpu().numpy()
 
-    # 4. FAISS Search
+    # 4. FAISS Search (Excluding self dynamically)
     print("Searching database...")
     index = faiss.read_index(config["index_path"])
     index_meta = pd.read_csv(config["index_metadata"])
     top_k = config.get("top_k", 5)
     
-    sims, ids = index.search(query_emb, top_k)
+    # Search for top_k + 1 neighbors to allow for self-exclusion
+    sims, ids = index.search(query_emb, top_k + 1)
     sims, ids = sims[0], ids[0]
 
     # 5. Results
     results = []
+    rank = 1
     for i, idx in enumerate(ids):
         res = index_meta.iloc[idx]
+        ret_id = res["patient_id"]
+        
+        # Filter self
+        if ret_id == query_id:
+            continue
+            
         results.append({
-            "retrieved_id": res["patient_id"],
+            "rank": rank,
+            "retrieved_id": ret_id,
             "dataset": res["dataset"],
             "score": f"{sims[i]:.4f}"
         })
+        rank += 1
+        if rank > top_k:
+            break
     
     print("\n[MATCHES FOUND]")
     print(pd.DataFrame(results).to_string(index=False))

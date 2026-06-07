@@ -20,9 +20,33 @@ def generate_eval_summary(index_path, metadata_path, embeddings_path, output_log
     
     # 3. Search Top-10
     k = 10
-    distances, _ = index.search(query_vecs, k + 1) # k+1 to account for self
-    # Focus on the neighbors (excluding self at index 0)
-    neighbor_sims = distances[:, 1:]
+    # Search for k + 1 neighbors to allow room for self-exclusion
+    distances, search_indices = index.search(query_vecs, k + 1)
+    
+    # Process each query individually to dynamically exclude self matches based on patient_id
+    neighbor_sims = []
+    for i, q_idx in enumerate(indices):
+        q_pid = metadata.iloc[q_idx]["patient_id"]
+        q_sims = distances[i]
+        q_retrieved_idx = search_indices[i]
+        
+        filtered_sims = []
+        for j, ret_idx in enumerate(q_retrieved_idx):
+            ret_pid = metadata.iloc[ret_idx]["patient_id"]
+            # Exclude self-match
+            if ret_pid == q_pid:
+                continue
+            filtered_sims.append(q_sims[j])
+            if len(filtered_sims) >= k:
+                break
+        
+        # Fallback if top-k wasn't fully satisfied (e.g. dataset too small, though unlikely here)
+        while len(filtered_sims) < k:
+            filtered_sims.append(0.0)
+            
+        neighbor_sims.append(filtered_sims)
+        
+    neighbor_sims = np.array(neighbor_sims)
     
     # 4. Calculate Metrics
     avg_top1_sim = np.mean(neighbor_sims[:, 0])
