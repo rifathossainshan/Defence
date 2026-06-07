@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glioma MRI Retrieval Dashboard</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Dashboard Specs -->
+        <header class="main-header">
+            <div class="logo-area">
+                <i class="fa-solid fa-brain neon-icon"></i>
+                <div class="logo-text">
+                    <h1>GLIOMA RETRIEVAL</h1>
+                    <span class="sub-logo">Multi-Branch Hybrid SSL Pipeline</span>
+                </div>
+            </div>
+            <div class="system-stats">
+                <div class="stat-box">
+                    <span class="label">Indexed Cohorts</span>
+                    <span class="val">1,381 Patients</span>
+                </div>
+                <div class="stat-box">
+                    <span class="label">Model Backbone</span>
+                    <span class="val">3D-ResNet18 (64<sup>3</sup>)</span>
+                </div>
+                <div class="stat-box">
+                    <span class="label">Search Latency</span>
+                    <span class="val">&lt; 0.72 ms</span>
+                </div>
+                <div class="stat-box">
+                    <span class="label">Deployment</span>
+                    <span class="val text-success"><i class="fa-solid fa-circle-check"></i> Production</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Layout -->
+        <main class="dashboard-grid">
+            <!-- Panel 1: Query Settings -->
+            <section class="card panel-settings">
+                <h2 class="panel-title"><i class="fa-solid fa-sliders"></i> Case Selection</h2>
+                
+                <div class="form-group">
+                    <label for="query-case-select">Select Patient Case</label>
+                    <div class="select-wrapper">
+                        <select id="query-case-select">
+                            <option value="">-- Loading cases... --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>MRI Visual Plane</label>
+                    <div class="plane-selector">
+                        <button class="plane-btn active" data-plane="axial">Axial</button>
+                        <button class="plane-btn" data-plane="coronal">Coronal</button>
+                        <button class="plane-btn" data-plane="sagittal">Sagittal</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>MRI Sequence Sequence</label>
+                    <div class="modality-selector">
+                        <button class="modality-btn active" data-mod="flair">FLAIR</button>
+                        <button class="modality-btn" data-mod="t1">T1</button>
+                        <button class="modality-btn" data-mod="t1ce">T1ce</button>
+                        <button class="modality-btn" data-mod="t2">T2</button>
+                        <button class="modality-btn" data-mod="seg">SEG (Labels)</button>
+                    </div>
+                </div>
+
+                <div class="system-logs">
+                    <h3><i class="fa-solid fa-terminal"></i> Console Logs</h3>
+                    <div id="log-output">System initialized. Ready for query.</div>
+                </div>
+            </section>
+
+            <!-- Panel 2: Live MRI Slice Viewer -->
+            <section class="card panel-viewer">
+                <div class="viewer-header">
+                    <h2 class="panel-title"><i class="fa-solid fa-eye"></i> Volumetric MRI Scan</h2>
+                    <span class="badge" id="slice-badge">Slice: 0/0</span>
+                </div>
+                
+                <div class="mri-viewport">
+                    <div id="viewer-loader" class="loader-overlay hidden">
+                        <div class="spinner"></div>
+                        <p>Extracting 3D Slice...</p>
+                    </div>
+                    <img id="mri-slice-img" src="" alt="MRI Slice Output" class="hidden">
+                    <div id="mri-placeholder" class="placeholder-text">
+                        <i class="fa-solid fa-image-portrait"></i>
+                        <p>Select a Patient Case to view 3D MRI scan slices</p>
+                    </div>
+                </div>
+
+                <div class="slider-container">
+                    <label for="slice-slider"><i class="fa-solid fa-arrows-left-right"></i> Scroll Volume Slice</label>
+                    <input type="range" id="slice-slider" min="0" max="100" value="50" disabled>
+                </div>
+            </section>
+
+            <!-- Panel 3: FAISS Neighbors Output -->
+            <section class="card panel-results">
+                <h2 class="panel-title"><i class="fa-solid fa-magnifying-glass-chart"></i> Similar Case Matches</h2>
+                <div id="results-list" class="results-list">
+                    <div class="placeholder-text">
+                        <i class="fa-solid fa-list-check"></i>
+                        <p>Run query to see similar cohorts in database</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom section: Academic Figures Visualizations -->
+        <footer class="academic-carousel-section">
+            <h2 class="section-title"><i class="fa-solid fa-chart-line"></i> Academic Evaluation Figures</h2>
+            <div class="carousel-container">
+                <div class="carousel-slides">
+                    <div class="slide active">
+                        <div class="slide-content">
+                            <h3>Figure 2: MRI Preprocessing & Volumetric Crop</h3>
+                            <p>Visualizes the skull-stripping and lesion-centered crop bounding box calculated from spatial headers to ensure OOM safety.</p>
+                            <img src="/static/figures/minieval_recon_sanity.png" alt="Figure 2" onerror="this.src='https://placehold.co/600x350/0f0f15/ffffff?text=Figure+2+Preprocessing'">
+                        </div>
+                    </div>
+                    <div class="slide">
+                        <div class="slide-content">
+                            <h3>Figure 3: Zero-Shot Retrieval Case Matching</h3>
+                            <p>Visualizes query slices side-by-side with retrieved cohort scans, highlighting similarity indexes and tissue segmentations.</p>
+                            <img src="/static/figures/retrieval_panel_BraTS2021_00000.png" alt="Figure 3" onerror="this.src='https://placehold.co/600x350/0f0f15/ffffff?text=Figure+3+Retrieval+Panel'">
+                        </div>
+                    </div>
+                    <div class="slide">
+                        <div class="slide-content">
+                            <h3>Figure 4: Embedding Space (UMAP Clustering)</h3>
+                            <p>Demonstrates semantic grouping of gliomas in a 2D UMAP space, confirming our contrastive loss successfully resolved dimensional collapse.</p>
+                            <img src="/static/figures/umap_embeddings.png" alt="Figure 4" onerror="this.src='https://placehold.co/600x350/0f0f15/ffffff?text=Figure+4+UMAP+Clustering'">
+                        </div>
+                    </div>
+                    <div class="slide">
+                        <div class="slide-content">
+                            <h3>Figure 7: Cross-Dataset Generalization</h3>
+                            <p>Compares retrieval accuracy and score distribution across BraTS2021, BraTS2024, and TCGA cohorts to validate model stability.</p>
+                            <img src="/static/figures/whole_vs_lesion_umap.png" alt="Figure 7" onerror="this.src='https://placehold.co/600x350/0f0f15/ffffff?text=Figure+7+Cross-Dataset'">
+                        </div>
+                    </div>
+                    <div class="slide">
+                        <div class="slide-content">
+                            <h3>Figure 8: Ablation Study (Whole-Brain vs Lesion-Centered)</h3>
+                            <p>Ablative curves showing the retrieval accuracy uplift achieved by training specifically on extracted lesion ROI volumes.</p>
+                            <img src="/static/figures/crop_comparison.png" alt="Figure 8" onerror="this.src='https://placehold.co/600x350/0f0f15/ffffff?text=Figure+8+Ablation'">
+                        </div>
+                    </div>
+                </div>
+                <div class="carousel-controls">
+                    <button id="prev-btn" class="carousel-btn"><i class="fa-solid fa-chevron-left"></i> Prev Figure</button>
+                    <button id="next-btn" class="carousel-btn">Next Figure <i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Script Entry -->
+    <script src="/static/app.js"></script>
+</body>
+</html>

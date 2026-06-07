@@ -14,7 +14,7 @@ from datasets.ssl_dataset import BraTSSSLDataset
 from models.multibranch_model import MultiBranchHybridSSLModel
 
 def extract_hybrid_full(config):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     output_size = config.get("output_size", 64)
     print(f"--- HYBRID SSL EMBEDDING EXTRACTION ---")
     print(f"Using device: {device} | Resolution: {output_size}^3")
@@ -23,7 +23,10 @@ def extract_hybrid_full(config):
     model = MultiBranchHybridSSLModel(embedding_dim=128, output_size=output_size).to(device)
     if os.path.exists(config["model_path"]):
         print(f"Loading weights from {config['model_path']}")
-        model.load_state_dict(torch.load(config["model_path"], map_location=device))
+        sd = torch.load(config["model_path"], map_location=device)
+        # Filter out reconstruction_head to avoid weight size mismatch on modified decoders
+        filtered_sd = {k: v for k, v in sd.items() if "reconstruction_head" not in k}
+        model.load_state_dict(filtered_sd, strict=False)
     else:
         print(f"Warning: Model weights not found at {config['model_path']}. Using random weights for pipeline test.")
     
@@ -43,7 +46,7 @@ def extract_hybrid_full(config):
         indices = list(range(min(config["sample_size"], len(dataset))))
         dataset = torch.utils.data.Subset(dataset, indices)
     
-    loader = DataLoader(dataset, batch_size=config.get("batch_size", 4), shuffle=False)
+    loader = DataLoader(dataset, batch_size=config.get("batch_size", 1), shuffle=False)
 
     # 3. Extraction Loop
     embeddings = []
@@ -57,7 +60,8 @@ def extract_hybrid_full(config):
             p_ids = batch["id"]
             datasets = batch["dataset"]
             
-            z, recon = model(x)
+            # Use get_embeddings from MultiBranchHybridSSLModel directly
+            z = model.get_embeddings(x)
             z = torch.nn.functional.normalize(z, p=2, dim=1)
             embeddings.append(z.cpu().numpy())
             
@@ -65,7 +69,7 @@ def extract_hybrid_full(config):
                 recons.append({
                     "id": p_ids[0],
                     "original": x[0].cpu().numpy(),
-                    "reconstructed": recon[0].cpu().numpy()
+                    "reconstructed": np.zeros_like(x[0].cpu().numpy()) # Dummy since decoder is skipped
                 })
 
             for i in range(len(p_ids)):
@@ -99,7 +103,7 @@ if __name__ == "__main__":
         "model_path": "outputs/checkpoints/multibranch_hybrid_best.pth",
         "csv_path": "data/metadata/metadata_brats2021.csv",
         "base_dir": ".",
-        "batch_size": 4,
+        "batch_size": 1,
         "output_size": 64,
         "sample_size": None, # Set to None for full dataset
         "output_npy": "outputs/embeddings/hybrid_embeddings.npy",

@@ -42,6 +42,8 @@ def start_real_demo():
     index = faiss.read_index(index_path)
     meta_df = pd.read_csv(meta_path)
     embeddings = np.load(embeddings_path).astype('float32')
+    # L2 normalize reference database embeddings to return correct Cosine Similarity scores
+    faiss.normalize_L2(embeddings)
     time.sleep(0.5)
     
     print_header("Step 1: Real-Time Feature Matching")
@@ -66,12 +68,21 @@ def start_real_demo():
         
         slow_print(f"  Search completed in {(end_t - start_t)*1000:.2f}ms")
         
-        for i in range(1, len(match_indices[0])): # Skip rank 0 (self-match)
+        rank = 1
+        for i in range(len(match_indices[0])):
             m_idx = match_indices[0][i]
             score = scores[0][i]
             match_id = meta_df.iloc[m_idx]["patient_id"]
             dataset = meta_df.iloc[m_idx]["dataset"]
-            print(f"  Rank {i}: Similar Case -> {match_id} (Score: {score:.4f}) | Source: {dataset}")
+            
+            # Dynamic self-match filtering
+            if match_id == query_id:
+                continue
+                
+            print(f"  Rank {rank}: Similar Case -> {match_id} (Score: {score:.4f}) | Source: {dataset}")
+            rank += 1
+            if rank > 5:
+                break
             time.sleep(0.3)
     
     print_header("System Summary & Conclusion")

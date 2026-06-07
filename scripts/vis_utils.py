@@ -27,7 +27,7 @@ def add_panel_label(ax, label, x=-0.05, y=1.1):
 
 def get_palette(n_colors=5):
     """Return a visually distinct and professional color palette using matplotlib colormap."""
-    cmap = plt.cm.get_cmap('viridis')
+    cmap = matplotlib.colormaps['viridis']
     return [cmap(val) for val in [i/(n_colors-1) if n_colors > 1 else 0 for i in range(n_colors)]]
 
 def save_fig(fig, filename, output_dir="outputs/visualizations/figures"):

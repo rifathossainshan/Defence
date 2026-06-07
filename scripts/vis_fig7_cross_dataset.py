@@ -1,4 +1,6 @@
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
@@ -32,7 +34,7 @@ def visualize_cross_dataset():
     # Calculate group means and std
     stats = df.groupby('Cohort')['best_match_sim'].agg(['mean', 'std']).reset_index()
     
-    fig, ax = plt.subplots(figsize=(10, 7))
+    fig, ax = plt.subplots(figsize=(8, 6))
     
     barplot = sns.barplot(
         data=df, 
