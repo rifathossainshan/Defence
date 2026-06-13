@@ -43,10 +43,20 @@ def run_cross_dataset_check():
         query_id = test_meta.iloc[idx]['patient_id']
         sims = sim_matrix[idx]
         
-        match_idx = np.argmax(sims)
-        match_score = sims[match_idx]
-        match_id = ref_meta.iloc[match_idx]['patient_id']
+        # Sort similarities in descending order
+        sorted_indices = np.argsort(sims)[::-1]
         
+        # Find best match that is not the query patient itself
+        match_id = None
+        match_score = 0.0
+        for m_idx in sorted_indices:
+            candidate_id = ref_meta.iloc[m_idx]['patient_id']
+            if candidate_id == query_id:
+                continue
+            match_id = candidate_id
+            match_score = sims[m_idx]
+            break
+            
         print(f"{query_id:<20} | {match_id:<20} | {match_score:.4f}")
 
     print("\n[VERDICT] High similarity scores (>0.9) indicate successful knowledge transfer.")
