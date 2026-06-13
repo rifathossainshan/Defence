@@ -113,7 +113,7 @@ def get_slice():
     if pd.isna(rel_path):
         return jsonify({"error": f"Path for modality {modality} is missing"}), 404
         
-    resolved_path = resolve_mri_path(rel_path, base_dir=".")
+    resolved_path = resolve_mri_path(rel_path)
     if not os.path.exists(resolved_path):
         return jsonify({"error": f"NIfTI file not found at {resolved_path}"}), 404
         
