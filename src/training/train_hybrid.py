@@ -50,39 +50,46 @@ def train_hybrid(config):
     log_path = "outputs/logs/hybrid_train_log.txt"
     print(f"Logging to {log_path}")
 
+    accumulation_steps = config.get("accumulation_steps", 4)
+
     for epoch in range(config["epochs"]):
         model.train()
         total_epoch_loss = 0
         total_simclr_l = 0
         total_recon_l = 0
         
+        optimizer.zero_grad()
         pbar = tqdm(loader, desc=f"Epoch {epoch+1}/{config['epochs']}")
-        for batch in pbar:
+        for step, batch in enumerate(pbar):
             x1 = batch["view1"].to(device)
             x2 = batch["view2"].to(device)
-            
-            optimizer.zero_grad()
             
             # Forward pass under autocast (mixed precision)
             with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
                 z1, recon1 = model(x1)
                 z2, recon2 = model(x2)
                 loss, l_sim, l_rec = criterion(z1, z2, recon1, recon2, x1, x2)
+                # Scale loss to account for gradient accumulation
+                loss = loss / accumulation_steps
             
             # Backward pass using scaled gradients
             if device.type == "cuda":
                 scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
+                if (step + 1) % accumulation_steps == 0 or (step + 1) == len(loader):
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad()
             else:
                 loss.backward()
-                optimizer.step()
+                if (step + 1) % accumulation_steps == 0 or (step + 1) == len(loader):
+                    optimizer.step()
+                    optimizer.zero_grad()
             
-            total_epoch_loss += loss.item()
+            total_epoch_loss += loss.item() * accumulation_steps
             total_simclr_l += l_sim.item()
             total_recon_l += l_rec.item()
             
-            pbar.set_postfix({"loss": f"{loss.item():.4f}", "sim": f"{l_sim.item():.4f}", "rec": f"{l_rec.item():.4f}"})
+            pbar.set_postfix({"loss": f"{(loss.item() * accumulation_steps):.4f}", "sim": f"{l_sim.item():.4f}", "rec": f"{l_rec.item():.4f}"})
 
         # Logging and Saving
         avg_loss = total_epoch_loss / len(loader)
@@ -103,9 +110,10 @@ if __name__ == "__main__":
     CONFIG = {
         "csv_path": "data/metadata/metadata_brats2021.csv",
         "base_dir": ".",
-        "batch_size": 2,
-        "epochs": 10, # Full training run for final validation
-        "output_size": 64,
+        "batch_size": 1, # Decreased from 2 to 1 to support 128^3/256^3 resolutions without OOM
+        "epochs": 10,
+        "output_size": 128, # Upgraded from 64 to 128
+        "accumulation_steps": 4, # Simulate batch size 4 (1*4)
         "lr": 1e-4,
         "temperature": 0.15,
         "lambda_recon": 1.0,

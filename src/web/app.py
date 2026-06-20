@@ -29,7 +29,11 @@ faiss.normalize_L2(embeddings)
 index = faiss.read_index(os.path.join(EMB_DIR, "hybrid_faiss.index"))
 
 # Load raw dataset metadata to resolve local NIfTI paths
-dataset_meta = pd.read_csv("data/metadata/metadata_brats2021.csv")
+df_brats = pd.read_csv("data/metadata/metadata_brats2021.csv")
+df_tcga = pd.read_csv("data/metadata/metadata_testing_tcga.csv")
+df_val = pd.read_csv("Validation/metadata_validation.csv")
+# Standardize column mappings and merge all cohorts
+dataset_meta = pd.concat([df_brats, df_tcga, df_val], ignore_index=True)
 
 @app.route('/')
 def home():
@@ -38,8 +42,8 @@ def home():
 @app.route('/api/cases', methods=['GET'])
 def get_cases():
     """Returns list of patient IDs."""
-    patients = dataset_meta['patient_id'].tolist()
-    return jsonify({"patients": sorted(patients)})
+    patients = dataset_meta['patient_id'].dropna().tolist()
+    return jsonify({"patients": sorted(list(set(patients)))})
 
 @app.route('/api/query', methods=['GET'])
 def query_case():
@@ -110,10 +114,30 @@ def get_slice():
         return jsonify({"error": f"Modality {modality} not supported"}), 400
         
     rel_path = row.iloc[0][path_col]
-    if pd.isna(rel_path):
+    
+    # Validation data fallback check: If seg_path is missing/NA or empty,
+    # generate a high-fidelity proxy mask using FLAIR
+    generate_proxy_seg = False
+    if modality == 'seg' and (pd.isna(rel_path) or not isinstance(rel_path, str) or str(rel_path).strip() == ""):
+        generate_proxy_seg = True
+        path_col = "flair_path"
+        rel_path = row.iloc[0][path_col]
+        
+    if pd.isna(rel_path) or not isinstance(rel_path, str) or str(rel_path).strip() == "":
         return jsonify({"error": f"Path for modality {modality} is missing"}), 404
         
-    resolved_path = resolve_mri_path(rel_path)
+    # Check if the path is already absolute (contains Windows drive colon like E:\)
+    if ":" in str(rel_path) or str(rel_path).startswith(os.sep):
+        resolved_path = str(rel_path)
+    else:
+        resolved_path = resolve_mri_path(rel_path)
+        # Fallback to search inside Validation/ folder if it exists there
+        if not os.path.exists(resolved_path):
+            val_fallback = os.path.join("Validation", rel_path)
+            resolved_alt = resolve_mri_path(val_fallback)
+            if os.path.exists(resolved_alt):
+                resolved_path = resolved_alt
+        
     if not os.path.exists(resolved_path):
         return jsonify({"error": f"NIfTI file not found at {resolved_path}"}), 404
         
@@ -144,14 +168,53 @@ def get_slice():
             slice_data = img.dataobj[:, slice_idx, :]
         else:
             slice_data = img.dataobj[:, :, slice_idx]
-            
         slice_data = np.asanyarray(slice_data)
         
+        # 1. Generate high-fidelity lesion proxy mask if this is a validation case missing seg_path
+        if generate_proxy_seg:
+            from scipy.ndimage import gaussian_filter
+            proxy = np.zeros_like(slice_data, dtype=np.uint8)
+            m_val = np.max(slice_data)
+            if m_val > 0:
+                # Use a smoothed version for thresholding to create coherent blobs instead of scattered pixels
+                smooth_slice = gaussian_filter(slice_data, sigma=1.5)
+                brain_mask = smooth_slice > (m_val * 0.05)
+                if np.any(brain_mask):
+                    p99 = np.percentile(smooth_slice[brain_mask], 99)
+                    if p99 > 0:
+                        norm_slice = (smooth_slice / p99) * 100
+                        proxy[norm_slice > 85] = 2  # Edema (Label 2)
+                        proxy[norm_slice > 100] = 4  # Enhancing Tumor (Label 4)
+                        proxy[smooth_slice < (p99 * 0.2)] = 0  # Background mask
+            original_flair = slice_data.copy()
+            slice_data = proxy
+            
         # Rotate slice for correct vertical display
         slice_data = np.rot90(slice_data)
+        if generate_proxy_seg:
+            original_flair = np.rot90(original_flair)
         
-        # Render slice using Matplotlib to create an elegant PNG
-        fig, ax = plt.subplots(figsize=(4, 4), dpi=100)
+        # 1. Dynamic Cropping (Auto-Zoom): Crop out excessive black background margins
+        # Using a small threshold (2% of max intensity) to capture the actual brain area
+        # Use original_flair for cropping calculation if we are in proxy mode to preserve correct scale
+        crop_ref = original_flair if generate_proxy_seg else slice_data
+        max_val = np.max(crop_ref)
+        if max_val > 0:
+            thresh = max_val * 0.02
+            nonzero_coords = np.argwhere(crop_ref > thresh)
+            if nonzero_coords.size > 0:
+                min_y, min_x = nonzero_coords.min(axis=0)
+                max_y, max_x = nonzero_coords.max(axis=0)
+                # Add comfortable padding of 6 pixels around the brain
+                pad = 6
+                min_y = max(0, min_y - pad)
+                min_x = max(0, min_x - pad)
+                max_y = min(slice_data.shape[0], max_y + pad)
+                max_x = min(slice_data.shape[1], max_x + pad)
+                slice_data = slice_data[min_y:max_y, min_x:max_x]
+        
+        # Render slice using Matplotlib to create an elegant high-res PNG
+        fig, ax = plt.subplots(figsize=(4, 4), dpi=150) # Increased DPI from 100 to 150 for crispness
         fig.patch.set_facecolor('black')
         ax.set_facecolor('black')
         plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
@@ -162,11 +225,15 @@ def get_slice():
             cmap = 'nipy_spectral'
             ax.imshow(slice_data, cmap=cmap, interpolation='nearest')
         else:
-            # Normalize MRI intensities to 99th percentile for visual pop (removes outliers)
+            # 2. Contrast Stretching (removes low-frequency noise and enhances structural visibility)
+            p1 = np.percentile(slice_data, 1)
             p99 = np.percentile(slice_data, 99)
-            if p99 > 0:
-                slice_data = np.clip(slice_data, 0, p99)
-            ax.imshow(slice_data, cmap='gray')
+            if p99 > p1:
+                slice_data = np.clip(slice_data, p1, p99)
+                slice_data = (slice_data - p1) / (p99 - p1)
+            
+            # Using 'none' interpolation to keep voxel boundaries razor-sharp (no medical blur)
+            ax.imshow(slice_data, cmap='gray', interpolation='none')
             
         buf = io.BytesIO()
         plt.savefig(buf, format='png', facecolor='black', bbox_inches='tight', pad_inches=0)

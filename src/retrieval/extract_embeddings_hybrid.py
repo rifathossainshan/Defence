@@ -104,7 +104,7 @@ if __name__ == "__main__":
         "csv_path": "data/metadata/metadata_brats2021.csv",
         "base_dir": ".",
         "batch_size": 1,
-        "output_size": 64,
+        "output_size": 128, # Upgraded from 64 to 128
         "sample_size": None, # Set to None for full dataset
         "output_npy": "outputs/embeddings/hybrid_embeddings.npy",
         "output_csv": "outputs/embeddings/hybrid_metadata.csv",

@@ -111,6 +111,19 @@ class ReconstructionHead(nn.Module):
                 nn.ReLU(inplace=True),
             ])
             last_channels = 8
+        elif output_size == 256:
+            # 64 -> 128 -> 256
+            layers.extend([
+                nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True),
+                nn.Conv3d(8, 8, kernel_size=3, padding=1),
+                nn.BatchNorm3d(8),
+                nn.ReLU(inplace=True),
+                nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True),
+                nn.Conv3d(8, 8, kernel_size=3, padding=1),
+                nn.BatchNorm3d(8),
+                nn.ReLU(inplace=True),
+            ])
+            last_channels = 8
 
         # Final map to modality channels
         layers.append(nn.Conv3d(last_channels, out_channels, kernel_size=1))
@@ -125,7 +138,7 @@ class ReconstructionHead(nn.Module):
 class MultiBranchHybridSSLModel(nn.Module):
     """
     Final Main Model: Modality-Aware Hybrid SSL Model.
-    Flexible for 64^3 or 128^3 resolution.
+    Flexible for 64^3, 128^3 or 256^3 resolution.
     """
     def __init__(self, feature_dim=128, fused_dim=512, embedding_dim=128, output_size=128):
         super(MultiBranchHybridSSLModel, self).__init__()
