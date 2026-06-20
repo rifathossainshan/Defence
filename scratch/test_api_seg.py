@@ -4,7 +4,8 @@ import base64
 import os
 
 def main():
-    url = "http://127.0.0.1:5000/api/slice?patient_id=BraTS-GLI-02073-100&modality=seg&plane=axial&slice_pct=0.5"
+    # Calling the new overlay endpoint for BraTS-GLI-02073-101
+    url = "http://127.0.0.1:5000/api/slice?patient_id=BraTS-GLI-02073-101&modality=seg&plane=coronal&slice_pct=0.5"
     print(f"Requesting: {url}")
     try:
         req = urllib.request.Request(url)
@@ -19,7 +20,7 @@ def main():
                 
                 output_dir = "scratch"
                 os.makedirs(output_dir, exist_ok=True)
-                output_path = os.path.join(output_dir, "test_validation_seg.png")
+                output_path = os.path.join(output_dir, "overlay_test.png")
                 with open(output_path, "wb") as f:
                     f.write(img_bytes)
                 print(f"SUCCESS: Saved slice image to {output_path} ({len(img_bytes)} bytes)")

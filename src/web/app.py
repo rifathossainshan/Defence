@@ -172,7 +172,7 @@ def get_slice():
         
         # 1. Generate high-fidelity lesion proxy mask if this is a validation case missing seg_path
         if generate_proxy_seg:
-            from scipy.ndimage import gaussian_filter
+            from scipy.ndimage import gaussian_filter, label
             proxy = np.zeros_like(slice_data, dtype=np.uint8)
             m_val = np.max(slice_data)
             if m_val > 0:
@@ -183,9 +183,40 @@ def get_slice():
                     p99 = np.percentile(smooth_slice[brain_mask], 99)
                     if p99 > 0:
                         norm_slice = (smooth_slice / p99) * 100
-                        proxy[norm_slice > 85] = 2  # Edema (Label 2)
-                        proxy[norm_slice > 100] = 4  # Enhancing Tumor (Label 4)
-                        proxy[smooth_slice < (p99 * 0.2)] = 0  # Background mask
+                        
+                        # Detect active tumor core candidates (top high intensities)
+                        core_mask = norm_slice > 92
+                        labeled_core, num_cores = label(core_mask)
+                        
+                        if num_cores > 0:
+                            # Keep only the largest component as the primary active tumor lesion
+                            sizes = [np.sum(labeled_core == i) for i in range(1, num_cores + 1)]
+                            largest_label = np.argmax(sizes) + 1
+                            tumor_core = (labeled_core == largest_label)
+                            
+                            # Find the centroid of the tumor core to restrict the peritumoral edema
+                            coords = np.argwhere(tumor_core)
+                            cy, cx = coords.mean(axis=0)
+                            
+                            # Edema candidate mask (intensity threshold)
+                            edema_candidate = norm_slice > 80
+                            
+                            # Distance calculation from tumor centroid
+                            y_indices, x_indices = np.indices(slice_data.shape)
+                            dist_from_core = np.sqrt((y_indices - cy)**2 + (x_indices - cx)**2)
+                            
+                            # Localize edema to a 40-voxel radius surrounding the tumor core
+                            edema_mask = edema_candidate & (dist_from_core < 40) & (~tumor_core)
+                            
+                            proxy[edema_mask] = 2  # Edema (Label 2)
+                            proxy[tumor_core] = 4  # Enhancing Tumor (Label 4)
+                        else:
+                            # Fallback if no core components are resolved
+                            proxy[norm_slice > 85] = 2
+                            proxy[norm_slice > 100] = 4
+                            
+                        # Clean up background noise
+                        proxy[smooth_slice < (p99 * 0.2)] = 0
             original_flair = slice_data.copy()
             slice_data = proxy
             
@@ -193,11 +224,42 @@ def get_slice():
         slice_data = np.rot90(slice_data)
         if generate_proxy_seg:
             original_flair = np.rot90(original_flair)
+            
+        # Load background MRI scan for overlaying segmentation
+        bg_data = None
+        if modality == 'seg':
+            if generate_proxy_seg:
+                bg_data = original_flair
+            else:
+                flair_rel_path = row.iloc[0]["flair_path"]
+                if not pd.isna(flair_rel_path) and isinstance(flair_rel_path, str) and flair_rel_path.strip() != "":
+                    if ":" in str(flair_rel_path) or str(flair_rel_path).startswith(os.sep):
+                        bg_resolved_path = str(flair_rel_path)
+                    else:
+                        bg_resolved_path = resolve_mri_path(flair_rel_path)
+                        if not os.path.exists(bg_resolved_path):
+                            val_fallback = os.path.join("Validation", flair_rel_path)
+                            bg_resolved_alt = resolve_mri_path(val_fallback)
+                            if os.path.exists(bg_resolved_alt):
+                                bg_resolved_path = bg_resolved_alt
+                    
+                    if os.path.exists(bg_resolved_path):
+                        try:
+                            bg_img = nib.load(bg_resolved_path)
+                            if axis == 0:
+                                bg_slice = bg_img.dataobj[slice_idx, :, :]
+                            elif axis == 1:
+                                bg_slice = bg_img.dataobj[:, slice_idx, :]
+                            else:
+                                bg_slice = bg_img.dataobj[:, :, slice_idx]
+                            bg_data = np.rot90(np.asanyarray(bg_slice))
+                        except Exception as e:
+                            print(f"Error loading background FLAIR: {e}")
         
         # 1. Dynamic Cropping (Auto-Zoom): Crop out excessive black background margins
         # Using a small threshold (2% of max intensity) to capture the actual brain area
-        # Use original_flair for cropping calculation if we are in proxy mode to preserve correct scale
-        crop_ref = original_flair if generate_proxy_seg else slice_data
+        # Use original_flair or bg_data for cropping calculation if we are in seg mode to preserve correct scale
+        crop_ref = bg_data if (modality == 'seg' and bg_data is not None) else (original_flair if generate_proxy_seg else slice_data)
         max_val = np.max(crop_ref)
         if max_val > 0:
             thresh = max_val * 0.02
@@ -212,6 +274,8 @@ def get_slice():
                 max_y = min(slice_data.shape[0], max_y + pad)
                 max_x = min(slice_data.shape[1], max_x + pad)
                 slice_data = slice_data[min_y:max_y, min_x:max_x]
+                if bg_data is not None:
+                    bg_data = bg_data[min_y:max_y, min_x:max_x]
         
         # Render slice using Matplotlib to create an elegant high-res PNG
         fig, ax = plt.subplots(figsize=(4, 4), dpi=150) # Increased DPI from 100 to 150 for crispness
@@ -220,8 +284,32 @@ def get_slice():
         plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
         ax.axis('off')
         
-        # Apply visual enhancement (grayscale for MRI, colormap for segmentation)
-        if modality == 'seg':
+        # Apply visual enhancement (grayscale for MRI, colormap overlay for segmentation)
+        if modality == 'seg' and bg_data is not None:
+            # 1. First stretch background scan for high visibility
+            p1 = np.percentile(bg_data, 1)
+            p99 = np.percentile(bg_data, 99)
+            if p99 > p1:
+                bg_data = np.clip(bg_data, p1, p99)
+                bg_data = (bg_data - p1) / (p99 - p1)
+            
+            # Show gray background scan with crisp boundaries
+            ax.imshow(bg_data, cmap='gray', interpolation='none')
+            
+            # 2. Build beautiful alpha blended segmentation overlay
+            h, w = slice_data.shape
+            overlay = np.zeros((h, w, 4), dtype=np.float32)
+            
+            # Label 1 (Necrotic tumor core) - Red/Crimson
+            overlay[slice_data == 1] = [0.95, 0.15, 0.15, 0.65]
+            # Label 2 (Peritumoral Edema swelling) - Cool transparent green/aquamarine
+            overlay[slice_data == 2] = [0.10, 0.85, 0.10, 0.42]
+            # Label 4 (Active/GD-enhancing tumor) - Vibrant Amber/Orange
+            overlay[slice_data == 4] = [1.0, 0.60, 0.0, 0.70]
+            
+            # Show colorized segmentation on top of gray scan
+            ax.imshow(overlay, interpolation='nearest')
+        elif modality == 'seg':
             cmap = 'nipy_spectral'
             ax.imshow(slice_data, cmap=cmap, interpolation='nearest')
         else:
