@@ -74,6 +74,7 @@
                         <button class="modality-btn" data-mod="t1ce">T1ce</button>
                         <button class="modality-btn" data-mod="t2">T2</button>
                         <button class="modality-btn" data-mod="seg">SEG (Labels)</button>
+                        <button class="modality-btn" data-mod="gradcam"><i class="fa-solid fa-wand-magic-sparkles"></i> Grad-CAM</button>
                     </div>
                 </div>
 
@@ -129,38 +130,46 @@
                         <div class="slide-content">
                             <h3>Figure 2: MRI Preprocessing & Volumetric Crop</h3>
                             <p>Visualizes the skull-stripping and lesion-centered crop bounding box calculated from spatial headers to ensure OOM safety.</p>
-                            <img src="/static/figures/minieval_recon_sanity.png" alt="Figure 2" onerror="this.src='https://placehold.co/600x350/0f0f15/ffffff?text=Figure+2+Preprocessing'">
+                            <img src="/static/figures/fig2_preprocessing.png" alt="Figure 2" onerror="this.src='https://placehold.co/600x350/0f0f15/ffffff?text=Figure+2+Preprocessing'">
                         </div>
                     </div>
                     <div class="slide">
                         <div class="slide-content">
                             <h3>Figure 3: Zero-Shot Retrieval Case Matching</h3>
                             <p>Visualizes query slices side-by-side with retrieved cohort scans, highlighting similarity indexes and tissue segmentations.</p>
-                            <img src="/static/figures/retrieval_panel_BraTS2021_00000.png" alt="Figure 3" onerror="this.src='https://placehold.co/600x350/0f0f15/ffffff?text=Figure+3+Retrieval+Panel'">
+                            <img src="/static/figures/fig3_retrieval.png" alt="Figure 3" onerror="this.src='https://placehold.co/600x350/0f0f15/ffffff?text=Figure+3+Retrieval+Panel'">
                         </div>
                     </div>
                     <div class="slide">
                         <div class="slide-content">
                             <h3>Figure 4: Embedding Space (UMAP Clustering)</h3>
                             <p>Demonstrates semantic grouping of gliomas in a 2D UMAP space, confirming our contrastive loss successfully resolved dimensional collapse.</p>
-                            <img src="/static/figures/umap_embeddings.png" alt="Figure 4" onerror="this.src='https://placehold.co/600x350/0f0f15/ffffff?text=Figure+4+UMAP+Clustering'">
+                            <img src="/static/figures/fig4_tsne.png" alt="Figure 4" onerror="this.src='https://placehold.co/600x350/0f0f15/ffffff?text=Figure+4+UMAP+Clustering'">
+                        </div>
+                    </div>
+                    <div class="slide">
+                        <div class="slide-content">
+                            <h3>Figure 6: Explainability (Grad-CAM 3D)</h3>
+                            <p>Visualizes the 3D Grad-CAM activations mapping model decision-making focus, highlighting spatial overlap with local tumor regions.</p>
+                            <img src="/static/figures/fig6_gradcam.png" alt="Figure 6" onerror="this.src='https://placehold.co/600x350/0f0f15/ffffff?text=Figure+6+Grad-CAM'">
                         </div>
                     </div>
                     <div class="slide">
                         <div class="slide-content">
                             <h3>Figure 7: Cross-Dataset Generalization</h3>
                             <p>Compares retrieval accuracy and score distribution across BraTS2021, BraTS2024, and TCGA cohorts to validate model stability.</p>
-                            <img src="/static/figures/whole_vs_lesion_umap.png" alt="Figure 7" onerror="this.src='https://placehold.co/600x350/0f0f15/ffffff?text=Figure+7+Cross-Dataset'">
+                            <img src="/static/figures/fig7_cross_dataset.png" alt="Figure 7" onerror="this.src='https://placehold.co/600x350/0f0f15/ffffff?text=Figure+7+Cross-Dataset'">
                         </div>
                     </div>
                     <div class="slide">
                         <div class="slide-content">
                             <h3>Figure 8: Ablation Study (Whole-Brain vs Lesion-Centered)</h3>
                             <p>Ablative curves showing the retrieval accuracy uplift achieved by training specifically on extracted lesion ROI volumes.</p>
-                            <img src="/static/figures/crop_comparison.png" alt="Figure 8" onerror="this.src='https://placehold.co/600x350/0f0f15/ffffff?text=Figure+8+Ablation'">
+                            <img src="/static/figures/fig8_ablation.png" alt="Figure 8" onerror="this.src='https://placehold.co/600x350/0f0f15/ffffff?text=Figure+8+Ablation'">
                         </div>
                     </div>
                 </div>
+
                 <div class="carousel-controls">
                     <button id="prev-btn" class="carousel-btn"><i class="fa-solid fa-chevron-left"></i> Prev Figure</button>
                     <button id="next-btn" class="carousel-btn">Next Figure <i class="fa-solid fa-chevron-right"></i></button>
