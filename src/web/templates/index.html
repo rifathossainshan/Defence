@@ -75,6 +75,7 @@
                         <button class="modality-btn" data-mod="t2">T2</button>
                         <button class="modality-btn" data-mod="seg">SEG (Labels)</button>
                         <button class="modality-btn" data-mod="gradcam"><i class="fa-solid fa-wand-magic-sparkles"></i> Grad-CAM</button>
+                        <button class="modality-btn final-result-btn" data-mod="all" style="flex: 100%; font-weight: bold; background: linear-gradient(90deg, rgba(2,132,199,0.8), rgba(56,189,248,0.8));"><i class="fa-solid fa-layer-group"></i> Final Result (Compare All)</button>
                     </div>
                 </div>
 
@@ -94,9 +95,13 @@
                 <div class="mri-viewport">
                     <div id="viewer-loader" class="loader-overlay hidden">
                         <div class="spinner"></div>
-                        <p>Extracting 3D Slice...</p>
+                        <p>Extracting 3D Slice(s)...</p>
                     </div>
+                    <!-- Single Image Viewer -->
                     <img id="mri-slice-img" src="" alt="MRI Slice Output" class="hidden">
+                    <!-- Multi Grid Viewer -->
+                    <div id="mri-grid" class="mri-grid hidden"></div>
+                    <!-- Placeholder -->
                     <div id="mri-placeholder" class="placeholder-text">
                         <i class="fa-solid fa-image-portrait"></i>
                         <p>Select a Patient Case to view 3D MRI scan slices</p>

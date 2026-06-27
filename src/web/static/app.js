@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sliceSlider = document.getElementById('slice-slider');
     const sliceBadge = document.getElementById('slice-badge');
     const mriImg = document.getElementById('mri-slice-img');
+    const mriGrid = document.getElementById('mri-grid');
     const mriPlaceholder = document.getElementById('mri-placeholder');
     const viewerLoader = document.getElementById('viewer-loader');
     const resultsList = document.getElementById('results-list');
@@ -51,24 +52,64 @@ document.addEventListener('DOMContentLoaded', () => {
         
         clearTimeout(sliceTimeout);
         sliceTimeout = setTimeout(() => {
-            const url = `/api/slice?patient_id=${currentPatient}&modality=${currentModality}&plane=${currentPlane}&slice_pct=${currentSlicePct}`;
-            
-            fetch(url)
-                .then(res => {
-                    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-                    return res.json();
-                })
-                .then(data => {
-                    mriImg.src = data.image;
-                    mriImg.classList.remove('hidden');
-                    sliceBadge.textContent = `Slice: ${data.slice_idx}/${data.max_slices - 1}`;
-                    viewerLoader.classList.add('hidden');
-                    sliceSlider.disabled = false;
-                })
-                .catch(err => {
-                    writeLog(`Slice load failed: ${err.message}`);
-                    viewerLoader.classList.add('hidden');
-                });
+            if (currentModality === 'all') {
+                const modalities = ['flair', 'seg', 'gradcam'];
+                const fetchPromises = modalities.map(mod => 
+                    fetch(`/api/slice?patient_id=${currentPatient}&modality=${mod}&plane=${currentPlane}&slice_pct=${currentSlicePct}`)
+                    .then(res => res.ok ? res.json() : null)
+                );
+
+                Promise.all(fetchPromises)
+                    .then(results => {
+                        mriImg.classList.add('hidden');
+                        mriGrid.innerHTML = '';
+                        mriGrid.classList.remove('hidden');
+
+                        let sliceIdx = 0, maxSlices = 0;
+
+                        results.forEach((data, index) => {
+                            if (data) {
+                                sliceIdx = data.slice_idx;
+                                maxSlices = data.max_slices;
+                                const itemDiv = document.createElement('div');
+                                itemDiv.className = 'grid-item';
+                                itemDiv.innerHTML = `
+                                    <div class="grid-label">${modalities[index].toUpperCase()}</div>
+                                    <img src="${data.image}" alt="${modalities[index]}">
+                                `;
+                                mriGrid.appendChild(itemDiv);
+                            }
+                        });
+
+                        sliceBadge.textContent = `Slice: ${sliceIdx}/${maxSlices - 1}`;
+                        viewerLoader.classList.add('hidden');
+                        sliceSlider.disabled = false;
+                    })
+                    .catch(err => {
+                        writeLog(`Grid load failed: ${err.message}`);
+                        viewerLoader.classList.add('hidden');
+                    });
+            } else {
+                const url = `/api/slice?patient_id=${currentPatient}&modality=${currentModality}&plane=${currentPlane}&slice_pct=${currentSlicePct}`;
+                
+                fetch(url)
+                    .then(res => {
+                        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+                        return res.json();
+                    })
+                    .then(data => {
+                        mriGrid.classList.add('hidden');
+                        mriImg.src = data.image;
+                        mriImg.classList.remove('hidden');
+                        sliceBadge.textContent = `Slice: ${data.slice_idx}/${data.max_slices - 1}`;
+                        viewerLoader.classList.add('hidden');
+                        sliceSlider.disabled = false;
+                    })
+                    .catch(err => {
+                        writeLog(`Slice load failed: ${err.message}`);
+                        viewerLoader.classList.add('hidden');
+                    });
+            }
         }, 80); // 80ms debounce for super smooth slider dragging
     }
 

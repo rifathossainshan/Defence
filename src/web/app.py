@@ -581,11 +581,14 @@ def get_slice():
             ax.imshow(rgba_gcam, interpolation='bilinear')
         else:
             # 2. Contrast Stretching (removes low-frequency noise and enhances structural visibility)
-            p1 = np.percentile(slice_data, 1)
-            p99 = np.percentile(slice_data, 99)
-            if p99 > p1:
-                slice_data = np.clip(slice_data, p1, p99)
-                slice_data = (slice_data - p1) / (p99 - p1)
+            # Calculate percentiles ONLY on non-zero brain tissue pixels
+            nonzero_vals = slice_data[slice_data > 0]
+            if len(nonzero_vals) > 0:
+                p1 = np.percentile(nonzero_vals, 1)
+                p99 = np.percentile(nonzero_vals, 99)
+                if p99 > p1:
+                    slice_data = np.clip(slice_data, p1, p99)
+                    slice_data = (slice_data - p1) / (p99 - p1)
             
             # Using 'none' interpolation to keep voxel boundaries razor-sharp (no medical blur)
             ax.imshow(slice_data, cmap='gray', interpolation='none')
