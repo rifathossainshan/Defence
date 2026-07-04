@@ -4,6 +4,10 @@ import subprocess
 import time
 import webbrowser
 
+# Set thread limits to prevent OpenBLAS memory allocation failures (C error: out of memory)
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+
 def launch_dashboard():
     print("==================================================")
     print("   GLIOMA MRI RETRIEVAL WEB DASHBOARD RUNNER      ")
