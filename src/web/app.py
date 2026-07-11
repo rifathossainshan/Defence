@@ -550,26 +550,6 @@ def get_slice():
             if max_cam > 0:
                 gcam_slice_2d = gcam_slice_2d / max_cam
                 
-            # Isolate the peak focus point (hotspot) by clearing ambient activations below 80%
-            threshold = 0.80
-            binary = gcam_slice_2d >= threshold
-            
-            from scipy.ndimage import label
-            labeled, num_features = label(binary)
-            if num_features > 0:
-                # Identify the label containing the absolute maximum activation point
-                max_idx = np.unravel_index(np.argmax(gcam_slice_2d), gcam_slice_2d.shape)
-                tumor_label = labeled[max_idx]
-                # Keep only this primary focus region, clear everything else
-                gcam_slice_2d[labeled != tumor_label] = 0.0
-            else:
-                gcam_slice_2d = np.zeros_like(gcam_slice_2d)
-            
-            # Re-normalize remaining focus area for vibrant colormap scaling
-            max_cam2 = np.max(gcam_slice_2d)
-            if max_cam2 > 0:
-                gcam_slice_2d = gcam_slice_2d / max_cam2
-                
             # Apply non-linear scaling to make the peak stand out and fade out smoothly at its borders
             gcam_slice_2d = np.power(gcam_slice_2d, 1.5)
             
